@@ -6,7 +6,9 @@ body:
     attributes: { label: What happened?, description: What did you do, and what went wrong? }
     validations: { required: true }
   - type: input
-    attributes: { label: App version, placeholder: "e.g. 1.6.1 (Settings → Feedback & contact)" }
+    attributes: { label: App version, placeholder: "e.g. 1.7.0 (Settings → Feedback & contact)" }
+  - type: input
+    attributes: { label: Computer, placeholder: "e.g. Windows 11, or macOS 15 on Apple silicon" }
   - type: input
     attributes: { label: Language and model, placeholder: "e.g. Hebrew · GigaAM" }
   - type: textarea

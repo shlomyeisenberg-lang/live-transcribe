@@ -1,6 +1,6 @@
 # Live Transcribe
 
-Free, on-device speech-to-text for Windows. Speak Hebrew, English and 25+ other languages and watch the text appear live. Everything runs on your own computer: your audio never leaves it.
+Free, on-device speech-to-text for Windows and Mac. Speak Hebrew, English and 25+ other languages and watch the text appear live. Everything runs on your own computer: your audio never leaves it.
 
 ## Download
 
@@ -10,9 +10,13 @@ Free, on-device speech-to-text for Windows. Speak Hebrew, English and 25+ other 
 |---|---|
 | `LiveTranscribe.exe` (~63 MB) | The app. Extra models download once, the first time you use them. |
 | `LiveTranscribe-Offline.exe` (~1.3 GB) | The same app with the models inside, for computers without internet. |
+| `LiveTranscribe-mac.dmg` (~58 MB) | **Mac** (macOS 12+, Apple silicon and Intel). Open it and drag Live Transcribe to Applications. |
+| `LiveTranscribe-Offline-mac.dmg` (~900 MB) | The Mac app with the models inside. |
 | `*.otzplugin` | Plugins for [Otzaria](https://github.com/Otzaria): live transcription, and a custom Word editor with dictation. Install in Otzaria: **Settings → Plugins → Install from file**. |
 
 Windows may warn that the app is unsigned: click **More info → Run anyway**.
+
+Mac: the first time, macOS says it cannot check the app (it is free and not registered with Apple). On macOS 15 or later press **Done**, then go to **System Settings → Privacy & Security** and click **Open Anyway**. On macOS 12–14, right-click the app and choose **Open**. For Type anywhere (**Control+Option+D**), allow the app under **Privacy & Security → Accessibility**.
 
 ## What it does
 
