@@ -1,0 +1,13 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: [bug]
+body:
+  - type: textarea
+    attributes: { label: What happened?, description: What did you do, and what went wrong? }
+    validations: { required: true }
+  - type: input
+    attributes: { label: App version, placeholder: "e.g. 1.6.1 (Settings → Feedback & contact)" }
+  - type: input
+    attributes: { label: Language and model, placeholder: "e.g. Hebrew · GigaAM" }
+  - type: textarea
+    attributes: { label: Anything else?, description: Screenshots help a lot. }
