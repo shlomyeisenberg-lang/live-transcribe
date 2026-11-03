@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>וורד לאוצריא</title>
+    <script>
+      /* ה-latch של plugin.boot. חייב לרוץ כאן, ב-head, לפני כל שאר קוד התוסף.
+
+         אוצריא משגרת את plugin.boot כאירוע window חד-פעמי ואינה משחזרת אותו:
+         מי שנרשם אחרי הירייה לא יקבל אותו לעולם, וההשלכה היא תוסף שנתקע על
+         „אוצריא לא סיימה לאתחל”. ההרשמה בזמן טעינת המודול אינה מספיקה — הבאנדל
+         שלנו הוא מיליוני בתים, ובפיתוח הוא גרף מודולים שנטען ברשת, ולכן הוא
+         עשוי להיטען אחרי שהאירוע כבר נורה. הסקריפט הזה רץ בזמן פריסת ה-HTML,
+         כלומר לפני כל אפשרות כזאת.
+
+         השם __otzariaBoot משותף עם src/host/otzaria-client.ts, ו-
+         tests/unit/otzaria-client.test.ts מקבע את הזהות הזאת. */
+      (function () {
+        var latch = { payload: null, at: null };
+        window.__otzariaBoot = latch;
+        window.addEventListener(
+          'plugin.boot',
+          function (event) {
+            latch.payload = event.detail;
+            latch.at = Math.round(performance.now());
+          },
+          { once: true },
+        );
+      })();
+    </script>
+
+    <script>
+      /* ה-latch של לחיצה על „שלח למסמך”, מאותו טעם בדיוק ובאותו מקום.
+
+         `openPlugin: true` מוסר את אירוע הלחיצה מיד אחרי ה-boot, והמאזין
+         שלנו נרשם רק אחרי שהבאנדל נטען — כלומר שניות אחריו. אירוע window
+         שאין לו מאזין אובד, ואוצריא אינה משחזרת אותו: בלי ה-latch הזה
+         לחיצה שפתחה את לשונית התוסף לא הייתה עושה דבר.
+
+         תור ולא ערך יחיד: המשתמש יכול ללחוץ שוב לפני שהעורך עלה.
+         `live` הוא מה שמונע טיפול כפול — משהוא נדלק ב-`takePending`,
+         ה-latch מפסיק לצבור ומאזין ה-App.vue הוא היחיד שרואה אירועים.
+
+         השם __otzariaContextMenuClicks משותף עם src/host/otzaria-reader.ts,
+         ו-tests/unit/otzaria-reader.test.ts מקבע את הזהות הזאת. */
+      (function () {
+        var latch = { queue: [], live: false };
+        window.__otzariaContextMenuClicks = latch;
+        window.addEventListener('contextMenu.itemClicked', function (event) {
+          if (latch.live) return;
+          if (latch.queue.length >= 8) latch.queue.shift();
+          latch.queue.push(event.detail);
+        });
+      })();
+    </script>
+
+    <script>
+      /* ה-latch של קובץ שתוסף אחר שולח (`plugin.page_opened`), מאותו טעם.
+
+         „סייר קבצים” פותח את הלשונית דרך `plugin.openOther`, ואוצריא מוסרת
+         את האירוע מיד בסוף ה-boot — שניות לפני שהמאזין ב-App.vue קיים. בלעדיו
+         הלשונית נפתחת והמסמך לא. תור, `live` והגבלת האורך — כמו למעלה.
+
+         השם __otzariaPageOpened משותף עם src/host/received-file.ts, ו-
+         tests/unit/received-file.test.ts מקבע את הזהות הזאת. */
+      (function () {
+        var latch = { queue: [], live: false };
+        window.__otzariaPageOpened = latch;
+        window.addEventListener('plugin.page_opened', function (event) {
+          if (latch.live) return;
+          if (latch.queue.length >= 8) latch.queue.shift();
+          latch.queue.push(event.detail);
+        });
+      })();
+    </script>
+
+    <script>
+      /* ה-latch של „ערוך בוורד לאוצריא” בסרגל הקורא, מאותו טעם בדיוק:
+         `openPlugin: true` מוסר את `reader.toolbar_item_clicked` מיד בסוף
+         ה-boot, לפני שהמאזין ב-App.vue קיים.
+
+         השם __otzariaToolbarClicks משותף עם src/host/edit-book.ts, ו-
+         tests/unit/edit-book.test.ts מקבע את הזהות הזאת. */
+      (function () {
+        var latch = { queue: [], live: false };
+        window.__otzariaToolbarClicks = latch;
+        window.addEventListener('reader.toolbar_item_clicked', function (event) {
+          if (latch.live) return;
+          if (latch.queue.length >= 8) latch.queue.shift();
+          latch.queue.push(event.detail);
+        });
+      })();
+    </script>
+
+    <!-- English interface mode: language toggle + live UI translation -->
+    <script src="./assets/english-mode.js"></script>
+
+    <!-- Live transcription panel: Hebrew Live Transcribe (127.0.0.1:47321)
+         and Otzaria Voice (127.0.0.1:47811) -->
+    <script src="./assets/live-transcribe.js"></script>
+
+    <!-- מסך הטעינה. ה-CSS כאן ולא בגיליון חיצוני, ובכוונה: הוא חייב להיות
+         מצויר לפני שנטענת ולו שורה אחת מקוד התוסף, וכל בקשה נוספת היא עוד
+         סיבוב שבו המסך לבן. מאותה סיבה אין כאן הגופן הארוז — הוא מותקן
+         ב-installBundledFonts() בזמן ריצה, ועד אז נופלים לגופן המערכת. -->
+    <style>
+      /* הפלטה של התוסף עצמו. הערכים חוזרים כאן מילה במילה מ-
+         `src/styles/tokens.css`, ולא במקרה: גיליון הטוקנים יושב בתוך
+         `app.js`, כלומר הוא זמין רק אחרי שהבאנדל נטען — ומסך הטעינה מצויר
+         לפני זה. הכפילות היא המחיר, ו-`tests/unit/splash.test.ts` מאמת
+         שהשניים לא יצאו מסינכרון.
+
+         --splash-accent הוא --color-primary, כלומר אותו כחול שהרצועה, הכפתור
+         הפעיל ומצב הבחירה כבר צבועים בו. מסך פתיחה בגוון משלו הוא הדבר היחיד
+         בתוסף שאינו שייך לתוסף.
+
+         למה משתנים משלו ולא var(--color-*) ישירות: --color-* מגיעים עם
+         tokens.css בתוך app.js, בערכי ברירת המחדל הבהירים. מסך טעינה שנשען
+         עליהם היה מחליף למצב בהיר ברגע שהבאנדל נטען — גם על מכשיר כהה — ורק
+         plugin.boot היה מחזיר אותו. applySplashTheme (למטה) מזין את המשתנים
+         האלה מערכת הנושא של אוצריא ברגע שהיא מגיעה, ולכן צבעי המסך כן באים
+         מה-API — דרך המשתנים של המסך, ולא דרך אלה של הבאנדל. */
+      :root {
+        --splash-surface: #f8f9fa;
+        --splash-on-surface: #1a1a2e;
+        --splash-muted: #49454f;
+        --splash-track: #e1dfdd;
+        --splash-accent: #1565c0;
+        /* --color-error. אין לו נגזרת כהה ב-tokens.css, ולכן גם לא כאן. */
+        --splash-error: #b00020;
+      }
+
+      /* אוצריא היא ה-Host, ולכן ערכת הנושא שלה קובעת — ולתוסף עצמו אין טוקנים
+         כהים משלו: `applyTheme()` דורס את כולם ממה שאוצריא שולחת. הבלוק הזה
+         מכסה רק את החלון שלפני `plugin.boot`, ולכן הוא נגזרת כהה של אותה
+         פלטה ולא ערכה שנייה. */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --splash-surface: #1a1a2e;
+          --splash-on-surface: #f8f9fa;
+          --splash-muted: #c8c5cd;
+          --splash-track: #33334a;
+          --splash-accent: #7fb0ea;
+        }
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+
+      body {
+        background: var(--splash-surface);
+      }
+
+      #otzaria-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: var(--splash-surface);
+        color: var(--splash-on-surface);
+        /* --font-main של tokens.css ברגע שהבאנדל נטען; עד אז אותה שרשרת בלי
+           הגופן הארוז (ראו ההערה שמעל ה-<style>). */
+        font-family: var(--font-main, 'Assistant', 'Segoe UI', 'Arial', sans-serif);
+        direction: rtl;
+        /* ההיעלמות מונפשת; ההופעה אינה — אנימציית כניסה על מסך טעינה היא
+           בדיוק ההשהיה שהמסך הזה בא למנוע. */
+        transition: opacity 220ms ease;
+      }
+
+      #otzaria-splash[data-done='1'] {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* rem ולא px: מדריך העיצוב של ה-SDK אוסר גדלים קשיחים מחוץ לפס הכותרת,
+         וכאן אין טוקן גודל זמין — --font-size-base יושב ב-tokens.css, אחרי
+         המסך. השורש הוא 16px, והערכים הם 20/14/13px של המסך כפי שנמדד. */
+      .splash-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+
+      .splash-bar {
+        position: relative;
+        width: min(320px, 60vw);
+        height: 6px;
+        border-radius: var(--radius-pill, 999px);
+        background: var(--splash-track);
+        overflow: hidden;
+      }
+
+      .splash-fill {
+        position: absolute;
+        inset-block: 0;
+        inset-inline-start: 0;
+        width: 0%;
+        border-radius: inherit;
+        background: var(--splash-accent);
+        /* גם על הצבע, ולא רק על הרוחב: ערכת הנושא של אוצריא מגיעה כרבע שנייה
+           אחרי שהפס כבר על המסך, ובלי המעבר הזה הוא מחליף גוון בקפיצה. */
+        transition:
+          width 180ms ease-out,
+          background-color 300ms ease;
+      }
+
+      /* נצנוץ שרץ על הפס בלי קשר להתקדמות. זה מה שמפריד „איטי” מ„תקוע”:
+         שלב שנמשך שנייה וחצי משאיר את הפס כמעט במקום, ובלי תנועה עצמאית
+         המשתמש קורא את זה כקריסה. */
+      .splash-bar::after {
+        content: '';
+        position: absolute;
+        inset-block: 0;
+        inline-size: 38%;
+        border-radius: inherit;
+        /* שקיפות דרך `opacity` ולא דרך `color-mix`: ל-WebView2 שאוצריא מריצה
+           אין תמיכה מובטחת ב-color-mix — מאותה סיבה ש-`host/theme.ts` גוזר את
+           דרגות ה-primary ב-JS ולא ב-CSS. כלל שלא נתמך היה משאיר את הנצנוץ
+           שקוף לגמרי, כלומר פס שנראה תקוע. */
+        background: linear-gradient(to left, transparent, var(--splash-accent), transparent);
+        opacity: 0.45;
+        animation: splash-sweep 1.4s ease-in-out infinite;
+      }
+
+      #otzaria-splash[data-done='1'] .splash-bar::after,
+      #otzaria-splash[data-failed='1'] .splash-bar::after {
+        animation: none;
+      }
+
+      @keyframes splash-sweep {
+        from {
+          transform: translateX(120%);
+        }
+        to {
+          transform: translateX(-320%);
+        }
+      }
+
+      .splash-stage {
+        font-size: 0.875rem;
+        color: var(--splash-muted);
+        min-height: 1.2em;
+      }
+
+      .splash-note {
+        font-size: 0.8125rem;
+        color: var(--splash-muted);
+        max-width: min(420px, 78vw);
+        text-align: center;
+        line-height: 1.5;
+        opacity: 0;
+        transition: opacity 220ms ease;
+      }
+
+      .splash-note[data-shown='1'] {
+        opacity: 1;
+      }
+
+      /* כשל אחרי שהבאנדל כבר נטען מקבל את --color-error של ערכת הנושא;
+         לפניו — אותו ערך, מהמשתנה של המסך. */
+      #otzaria-splash[data-failed='1'] .splash-fill {
+        background: var(--color-error, var(--splash-error));
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #otzaria-splash {
+          transition: none;
+        }
+        /* הרוחב מפסיק להיות מונפש; הצבע נשאר, כי הוא לא תנועה — הוא החלפת
+           גוון שקופצת בלעדיו. */
+        .splash-fill {
+          transition: background-color 300ms ease;
+        }
+        .splash-bar::after {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="otzaria-splash" role="status" aria-live="polite">
+      <div class="splash-title">טוען את וורד לאוצריא…</div>
+      <div class="splash-bar"><div class="splash-fill" id="otzaria-splash-fill"></div></div>
+      <div class="splash-stage" id="otzaria-splash-stage">מתחיל</div>
+      <div class="splash-note" id="otzaria-splash-note"></div>
+    </div>
+
+    <div id="app"></div>
+
+    <script>
+      /* ה-API של מסך הטעינה. inline ובלי תלות בקוד התוסף, בכוונה: הוא צריך
+         לעבוד גם כשהתוסף עצמו הוא מה שנכשל להיטען — ואז הוא המקום היחיד
+         שנשאר כדי לומר את זה למשתמש. src/host/splash.ts הוא רק עטיפה מוטיפסת
+         מעליו, וכשהוא חסר (jsdom בבדיקות) הכול שם הופך ל-no-op.
+
+         שלוש התנהגויות שאינן קוסמטיות:
+         1. ההתקדמות אינה נסוגה לעולם. יעד נמוך מהערך הנוכחי נבלע.
+         2. בין שלב לשלב הפס זוחל לבדו לעבר היעד, בקצב דועך. שלב שנמשך שתי
+            שניות — וזה בדיוק מה שמנוע ה-DOCX עושה — אינו נראה תקוע.
+         3. רק done() מגיע ל-100%. אין „99% שנתקע”. */
+      (function () {
+        var root = document.getElementById('otzaria-splash');
+        var fill = document.getElementById('otzaria-splash-fill');
+        var stage = document.getElementById('otzaria-splash-stage');
+        var note = document.getElementById('otzaria-splash-note');
+
+        var value = 0;
+        var target = 0;
+        var timer = null;
+        var closed = false;
+
+        /* צבעי אוצריא.
+
+           הפלטה שב-CSS היא של התוסף (--color-* מ-tokens.css), אבל הצבע שהמשתמש
+           מכיר הוא של אוצריא: `--color-primary` נדרס בזמן ריצה ב-applyTheme()
+           לפי מה ש-plugin.boot הביא. אוצריא נזרעת כברירת מחדל מחום זהבהב, ולכן
+           פס התקדמות שנשאר על ברירת המחדל של התוסף נראה כחול בתוך ממשק חום.
+
+           **שני מקורות ולא אחד**, וזה העיקר כאן: קריאה חד-פעמית מה-latch
+           מכסה רק את המקרה שהאירוע נורה לפני שהסקריפט הזה רץ — והוא רץ בזמן
+           פריסת ה-HTML, כלומר כמעט תמיד לפני. בפועל האירוע מגיע מאוחר יותר,
+           והקריאה החד-פעמית מפספסת אותו: מסך הטעינה נשאר על צבע ברירת המחדל
+           לכל אורך חייו. לכן גם מאזין. */
+        function applySplashTheme(theme) {
+          if (!theme) return;
+          var scheme = theme.colorScheme || {};
+          var style = document.documentElement.style;
+          /* אותו מיפוי כמו ב-:root שלמעלה, מול אותם תפקידים של ה-SDK —
+             `outlineVariant` נושא את מסילת הפס בשני המצבים, ולכן אין צורך
+             בטיפול נפרד ל-dark. */
+          var roles = [
+            ['--splash-surface', scheme.surface],
+            ['--splash-on-surface', scheme.onSurface],
+            ['--splash-muted', scheme.onSurfaceVariant],
+            ['--splash-track', scheme.outlineVariant],
+            ['--splash-accent', scheme.primary],
+          ];
+          for (var i = 0; i < roles.length; i++) {
+            if (roles[i][1]) style.setProperty(roles[i][0], roles[i][1]);
+          }
+        }
+
+        try {
+          var boot = window.__otzariaBoot && window.__otzariaBoot.payload;
+          if (boot) applySplashTheme(boot.theme);
+        } catch (error) {
+          /* ערכת נושא היא קישוט; כשל כאן לא יעצור מסך טעינה */
+        }
+
+        window.addEventListener(
+          'plugin.boot',
+          function (event) {
+            try {
+              applySplashTheme(event.detail && event.detail.theme);
+            } catch (error) {
+              /* כנ"ל */
+            }
+          },
+          { once: true },
+        );
+
+        function paint() {
+          fill.style.width = value.toFixed(1) + '%';
+        }
+
+        function stop() {
+          if (timer !== null) {
+            clearInterval(timer);
+            timer = null;
+          }
+        }
+
+        function tick() {
+          /* דעיכה גיאומטרית: תמיד זזה, לעולם לא עוברת את היעד. */
+          var gap = target - value;
+          if (gap <= 0.05) {
+            value = target;
+            paint();
+            stop();
+            return;
+          }
+          value += gap * 0.08;
+          paint();
+        }
+
+        function start() {
+          if (timer === null && !closed) timer = setInterval(tick, 60);
+        }
+
+        var api = {
+          /**
+           * יעד באחוזים + טקסט השלב. נסיגה נבלעת — גם באחוזים וגם בטקסט.
+           *
+           * הטקסט חייב להיבלע יחד עם האחוזים, ולא רק הם: שלבים מדווחים משני
+           * מקורות שרצים במקביל (המעטפת ומשיכת המנוע), ובלי הבליעה מסך
+           * הטעינה היה חוזר מ„מפעיל את המנוע” ל„מכין את סביבת העריכה”.
+           * טקסט שנסוג נקרא כתקלה.
+           */
+          set: function (next, text) {
+            if (closed) return;
+            if (typeof next !== 'number' || next < target) return;
+            target = Math.min(next, 99);
+            if (text) stage.textContent = text;
+            // התקדמות אחרי כשל מבטלת אותו: חריגה שהעלייה שרדה אינה כשל.
+            if (root.getAttribute('data-failed') === '1') {
+              root.removeAttribute('data-failed');
+              note.setAttribute('data-shown', '0');
+            }
+            start();
+          },
+
+          /** הודעה משנית — „זה לוקח יותר מהרגיל”, שם המסמך הנפתח וכדומה. */
+          note: function (text) {
+            if (closed) return;
+            note.textContent = text || '';
+            note.setAttribute('data-shown', text ? '1' : '0');
+          },
+
+          /**
+           * כשל סופי. המסך נשאר, כי הוא כל מה שנשאר להראות.
+           *
+           * `detail` יורד ל-note ולא ל-stage: רק ל-note יש max-width, ושורת
+           * שגיאה של מנוע ה-DOCX ארוכה מרוחב המסך.
+           */
+          fail: function (text, detail) {
+            if (closed) return;
+            stop();
+            root.setAttribute('data-failed', '1');
+            stage.textContent = text || 'הטעינה נכשלה';
+            note.textContent =
+              'אפשר לסגור את הלשונית ולפתוח אותה מחדש.' + (detail ? ' ' + detail : '');
+            note.setAttribute('data-shown', '1');
+          },
+
+          /** סוף. 100%, ואז הסרה מה-DOM כדי שלא תישאר שכבה מעל הממשק. */
+          done: function () {
+            if (closed) return;
+            closed = true;
+            stop();
+            target = 100;
+            value = 100;
+            paint();
+            stage.textContent = 'מוכן';
+            root.setAttribute('data-done', '1');
+            setTimeout(function () {
+              if (root.parentNode) root.parentNode.removeChild(root);
+            }, 260);
+          },
+        };
+
+        window.__otzariaSplash = api;
+        api.set(8, 'מתחיל');
+
+        /* חריגה שאיש אינו תופס, בזמן שהמסך הזה עדיין למעלה.
+
+           הטוען שב-vite.config.ts מכסה תגית שלא **נטענה**; מה שאינו מכוסה
+           הוא קוד שנטען ונכשל בהרצה — ייבוא שאינו נפתר אחרי שדרוג תלות,
+           חריגה בעליית המנוע — ואז `load` נורה כרגיל, איש אינו קורא fail(),
+           ומסך הטעינה נשאר על „מתחיל” לנצח בלי מילה. זה נמדד: ייבוא של סמל
+           שאינו קיים ב-`superdoc-macros` השאיר בדיוק את המסך הזה.
+
+           מה שאינם מכסים, ואינם יכולים: חוט ראשי שנתקע בלי לזרוק (ראו
+           docs/engine-gaps.md) — שם אין חריגה לשמוע. */
+        function fatal(detail) {
+          if (closed || root.getAttribute('data-failed') === '1') return;
+          var text = String(detail || '');
+          // ב-file:// — כלומר בתוסף הארוז — Chrome משתיק את החריגה ומוסר
+          // „Script error.” בלבד. הפירוט נשאר בקונסולה; נמדד.
+          if (text === 'Script error.') text = 'הדפדפן לא מסר את פרטי השגיאה; הם בקונסולת הדף.';
+          api.fail('הטעינה נכשלה', text.slice(0, 300));
+        }
+        window.addEventListener('error', function (event) {
+          // ErrorEvent בלבד: כשל טעינה של משאב נורה על האלמנט ואינו מבעבע לכאן.
+          fatal(event.message);
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+          var reason = event.reason;
+          fatal((reason && (reason.message || reason)) || 'דחייה שלא טופלה');
+        });
+
+        /* שעון-שומר. אם שום שלב לא דיווח זמן רב, המסך אומר את זה במקום
+           להציג פס שנע לנצח בלי הסבר. */
+        setTimeout(function () {
+          // לא מעל כשל: „לוקח יותר מהרגיל” היה מוחק את שורת השגיאה עצמה.
+          if (closed || root.getAttribute('data-failed') === '1') return;
+          api.note('הטעינה לוקחת יותר מהרגיל. המנוע נטען פעם אחת בכל פתיחה.');
+        }, 12000);
+      })();
+    </script>
+
+    <!-- תגית המודול נדרשת לשרת הפיתוח של Vite. ה-build מחליף אותה — ואת
+         תגית ה-workers שהוא מזריק לצדה — בטוען אחד שמושך את שניהם אחרי
+         הצביעה הראשונה. ראו deferredEntry ב-vite.config.ts. -->
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

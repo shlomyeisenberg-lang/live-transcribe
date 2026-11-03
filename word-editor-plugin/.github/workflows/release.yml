@@ -1,0 +1,217 @@
+# בנייה, אריזה ופרסום של התוסף.
+#
+# שני ערוצים באותה ריצה:
+#   • ערוץ dev  — בכל קומיט ל-main נבנה .otzplugin ומתעדכן ב-Release
+#                 הקבוע `v2-dev` (prerelease), כדי שתמיד יש קובץ להורדה.
+#   • ערוץ יציב — כשהגרסה ב-public/manifest.json עולה ואין עדיין Release
+#                 בשם v<גרסה>, נוצר Release אמיתי, ואם הסודות מוגדרים גם
+#                 מתבצע פרסום לחנות otzaria.org דרך ה-action הרשמי.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Validate, package & release
+    runs-on: ubuntu-latest
+    # ברמת ה-job כדי שה-`if` של שלב הפרסום יוכל לקרוא אותם: הקשר secrets
+    # אינו זמין ב-if, ו-env של שלב אינו נראה ל-if של אותו שלב עצמו.
+    env:
+      OTZARIA_USER: ${{ secrets.OTZARIA_USER }}
+      OTZARIA_PASSWORD: ${{ secrets.OTZARIA_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build (Vite -> dist)
+        run: npm run build
+
+      - name: Check dist
+        run: npm run check:dist
+
+      # שני השערים הבאים מריצים Chrome אמיתי מול file://. הם עדות חשובה אבל
+      # תלויים בדפדפן של הרנר, ולכן אינם מכשילים את הריצה — כשל כאן מסומן
+      # באזהרה ולא חוסם את ה-Release.
+      - name: Check boot gate (advisory)
+        continue-on-error: true
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: npm run check:boot
+
+      - name: Check font gate (advisory)
+        continue-on-error: true
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: npm run check:fonts
+
+      - name: Read manifest metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./public/manifest.json').version")"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "גרסה לא תקינה ב-public/manifest.json: '$version' (מצופה X.Y.Z)" >&2
+            exit 1
+          fi
+          echo "version=$version"        >> "$GITHUB_OUTPUT"
+          echo "tag=v$version"           >> "$GITHUB_OUTPUT"
+          echo "sha=${GITHUB_SHA::7}"    >> "$GITHUB_OUTPUT"
+
+      # הגרסה הארוזה היא זו שה-Release ייקרא על שמה; הוא נגזר מ-public/manifest.json
+      # והבדיקה נשארת כאן כי היא היחידה שאינה על המניפסט עצמו אלא על ההתאמה בינו לבנייה.
+      - name: Verify dist version matches public
+        run: |
+          set -euo pipefail
+          node -e '
+            const m = require("./dist/manifest.json");
+            if (m.version !== process.env.EXPECTED) {
+              console.error(`גרסה ב-dist (${m.version}) שונה מהגרסה ב-public (${process.env.EXPECTED})`);
+              process.exit(1);
+            }
+            console.log(`OK: גרסה ${m.version}`);
+          '
+        env:
+          EXPECTED: ${{ steps.meta.outputs.version }}
+
+      # שער האמת היחיד: אותן בדיקות שהחנות ואוצריא מריצות, מול מפרט ה-SDK
+      # החי של אוצריא. רץ על כל קומיט וללא סודות (`publish: false`), כך שמניפסט
+      # שחדל לעמוד בכללי ההתקנה נופל כאן ולא אצל המשתמש.
+      - name: Validate against the live Otzaria SDK spec
+        uses: Otzaria/otzaria-plugin-validator@v1
+        with:
+          path: dist
+          publish: 'false'
+          fail-on-warnings: 'true'
+
+      # ה-manifest חייב לשבת בשורש הארכיון — לכן דוחסים את תוכן dist ולא את
+      # התיקייה עצמה.
+      - name: Package .otzplugin
+        id: pack
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          dev="$PWD/out/otzaria-word-editor-v2-dev.otzplugin"
+          tagged="$PWD/out/otzaria-word-editor-v${{ steps.meta.outputs.version }}.otzplugin"
+          (cd dist && zip -r -q -X "$dev" . -x '*-tmp.html' -x '*.map')
+          cp "$dev" "$tagged"
+          sha="$(sha256sum "$dev" | cut -d' ' -f1)"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "dev=out/otzaria-word-editor-v2-dev.otzplugin" >> "$GITHUB_OUTPUT"
+          echo "tagged=out/otzaria-word-editor-v${{ steps.meta.outputs.version }}.otzplugin" >> "$GITHUB_OUTPUT"
+          unzip -l "$dev"
+          echo "SHA-256: $sha"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: otzaria-word-editor-v2-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.sha }}
+          path: out/otzaria-word-editor-v2-dev.otzplugin
+          if-no-files-found: error
+
+      # ערוץ dev: תג קבוע שמתעדכן בכל קומיט, כך שיש תמיד קובץ תוסף להורדה
+      # מבלי להצטרך לקדם גרסה.
+      - name: Update rolling dev release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2-dev
+          name: 'v2 — בנייה אחרונה'
+          target_commitish: ${{ github.sha }}
+          draft: false
+          prerelease: true
+          files: out/otzaria-word-editor-v2-dev.otzplugin
+          body: |
+            ## וורד לאוצריא v2 — בנייה אחרונה מ-main
+
+            נבנה אוטומטית מקומיט [`${{ steps.meta.outputs.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}).
+            גרסת ה-manifest: `${{ steps.meta.outputs.version }}`.
+
+            > בנייה מתגלגלת לבדיקות — הקובץ כאן מתחלף בכל קומיט. לגרסה יציבה
+            > ראו את ה-Releases המתויגים.
+
+            ### התקנה
+            הורידו את קובץ ה-`.otzplugin` שלמטה, ובאוצריא:
+            **הגדרות → ניהול תוספים → התקנה מקובץ**.
+
+            ### Checksum
+            ```
+            SHA-256: ${{ steps.pack.outputs.sha256 }}
+            ```
+
+      - name: Check if version release already exists
+        id: release_check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG כבר קיים — מדלגים על יצירה ועל פרסום לחנות"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ה-action הרשמי של אוצריא מאמת, אורז .otzplugin ומפרסם לחנות. התוסף
+      # מזוהה לפי manifest.id, והגרסה חייבת לעלות — ולכן זה רץ רק כשנוצר
+      # Release חדש לגרסה, ורק אם הסודות מוגדרים במאגר.
+      - name: Validate, package & publish to otzaria.org
+        id: otzaria
+        if: ${{ steps.release_check.outputs.exists == 'false' && env.OTZARIA_USER != '' && env.OTZARIA_PASSWORD != '' }}
+        uses: Otzaria/otzaria-plugin-validator@v1
+        with:
+          path: dist
+          otzaria-user: ${{ secrets.OTZARIA_USER }}
+          otzaria-password: ${{ secrets.OTZARIA_PASSWORD }}
+
+      - name: Create GitHub Release
+        if: ${{ steps.release_check.outputs.exists == 'false' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: ${{ steps.pack.outputs.tagged }}
+          body: |
+            ## וורד לאוצריא — ${{ steps.meta.outputs.tag }}
+
+            עורך מסמכים בסגנון Word על מנוע SuperDoc, לכתיבת חידושי תורה בתוך אוצריא.
+
+            ### התקנה
+            הורידו את קובץ ה-`.otzplugin` שלמטה, ובאוצריא:
+            **הגדרות → ניהול תוספים → התקנה מקובץ**.
+            מי שהתקין מהחנות מקבל את העדכון אוטומטית.
+
+            ### Checksum
+            ```
+            SHA-256: ${{ steps.pack.outputs.sha256 }}
+            ```

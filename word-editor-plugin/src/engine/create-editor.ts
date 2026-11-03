@@ -1,0 +1,332 @@
+/**
+ * הקמת מנוע SuperDoc v2 במצב "מנוע בלבד" — `ui: false`.
+ * הממשק כולו שלנו; SuperDoc אחראי למודל המסמך, לעימוד, ל-DOCX ולייצוא.
+ *
+ * חוזה הבעלות על ה-controller (superdoc@2.8.0):
+ * המופע כבר מחזיק controller ומחזיר אותו ב-`superdoc.ui`, בטיפוס
+ * `BorrowedSuperDocUI` — כלומר `Omit<SuperDocUI, 'destroy'>`. אין לקרוא
+ * ל-`createSuperDocUI` מקוד התוסף: זה יוצר controller שני, בבעלותנו, שהמנוע
+ * לא יודע עליו. הפירוק נעשה ב-`superdoc.destroy()` בלבד — הוא זה שמפרק גם את
+ * ה-controller.
+ */
+import { SuperDoc } from 'superdoc';
+import type { BorrowedSuperDocUI, SuperDocExceptionPayload } from 'superdoc';
+import 'superdoc/style.css';
+// אחרי גיליון המנוע, ובכוונה: הכללים שם מעברתים את שכבת הכותרות שהוא מצייר.
+import '../styles/engine-chrome.css';
+import { splashStage, SPLASH_STAGES } from '../host/splash';
+import { installClickFocus } from './click-focus';
+import { installFormatPainter } from './format-painter';
+import { localizeEngineChrome } from './hf-chrome';
+import { installPointerSnap } from './pointer-snap';
+import { installWordSelection } from './word-selection';
+import { createOtzariaLinkActivation } from './otzaria-link-activation';
+import { openOtzariaLink } from '../host/otzaria-reader';
+import { engineWorkerUrls } from './workers';
+
+export interface EditorSession {
+  superdoc: SuperDoc;
+  /** ה-controller של המופע. מושאל — לא לפרק אותו, ואין לו `destroy`. */
+  ui: BorrowedSuperDocUI;
+  /** ה-container שהמנוע רינדר לתוכו. לשכבות חיצוניות שמותקנות/מפורקות מחוץ
+   * ל-create-editor (למשל book-completion-overlay.ts, תלוי-טוגל). */
+  container: HTMLElement;
+  /** רושם ביטול של subscription שלנו. ירוץ ב-`destroy`, לפני פירוק המנוע. */
+  onDispose(dispose: () => void): void;
+  /** מבטל את ה-subscriptions שלנו ואז מפרק את המנוע. אידמפוטנטי. */
+  destroy(): void;
+}
+
+export interface CreateEditorOptions {
+  /** האלמנט שבתוכו SuperDoc מרנדר את המסמך. */
+  container: HTMLElement;
+  /**
+   * המסמך לפתיחה: URL (מה-loopback של אוצריא) או File/Blob.
+   * בלי מסמך נפתח מסמך ריק.
+   */
+  source?: string | File | Blob;
+  /** נקרא על כל exception של המנוע, גם אחרי שהמסמך נטען. */
+  onError?: (error: Error, payload: SuperDocExceptionPayload) => void;
+  /**
+   * הודעה למשתמש משכבה שהמנוע מחזיק, ולא מהממשק.
+   *
+   * היום יש לזה צרכן אחד: כשל בפתיחת קישור `otzaria://`. `reader.openBook`
+   * מחזיר `false` כשהספר אינו נמצא, וללא הערוץ הזה התוצאה הייתה „לחצתי ולא
+   * קרה כלום, וגם לא נאמר לי למה”.
+   */
+  onStatus?: (message: string, isError: boolean) => void;
+  /** נקרא על כל שינוי במסמך. זה מה שמסמן אותו כלא-שמור. */
+  onUpdate?: () => void;
+  /**
+   * מספר עמודי הפריסה, אחרי כל מעבר עימוד.
+   *
+   * זה **המקור היחיד** למספר העמודים: אין getter ציבורי לשאול בו „כמה עמודים
+   * יש”, ו-`doc.info().counts.pages` מתועד כמי שנעדר „when pagination is
+   * inactive or layout hasn't completed”. עמודים אינם ידועים לפני שהפריסה
+   * רצה, ולכן מי שאינו מאזין לזה יכול רק להמציא מספר — וזה מה שקרה: שורת
+   * המצב הציגה „עמוד 1 מתוך 1” על כל מסמך.
+   *
+   * ה-payload של המנוע נושא גם את המופע עצמו; הוא אינו מועבר הלאה — מי
+   * שרושם את ה-callback מחזיק את ה-session ואינו צריך לקבל אותו בחזרה.
+   */
+  onPaginationUpdate?: (totalPages: number) => void;
+  /** מעל הזמן הזה הפתיחה נכשלת. ראו OPEN_TIMEOUT_MS. */
+  timeoutMs?: number;
+  /**
+   * „דלג” — נטישת הפתיחה מצד המשתמש. ראו OPEN_CANCELLED_MESSAGE.
+   *
+   * מה שהוא קונה מעל „פשוט להתעלם מהתוצאה”: המופע החצי-בנוי **מפורק**, ואיתו
+   * ה-workers שלו. פתיחה שנזנחה בלי זה ממשיכה לבנות את המסמך עד הסוף — כלומר
+   * המשתמש לוחץ „דלג”, המחוון נעלם, והמכונה נשארת עמוסה בדיוק כמו לפניו.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * גבול הזמן לפתיחת מסמך.
+ *
+ * לא הגנה מפני איטיות אלא מפני שקט: `onReady` ו-`onException` הם שני המסלולים
+ * היחידים שמסיימים את ההבטחה, ומסלול במנוע שלא יורה אף אחד מהם מקפיא את
+ * הממשק בלי שום סימן. קרה בפועל עם דיאלוג הסיסמה המובנה. הערך נדיב ביחס
+ * ל-boot שנמדד (485ms ארוז, 4.3 שניות בפיתוח) ומול workerStartupTimeoutMs
+ * של המנוע (30 שניות).
+ *
+ * **מה הוא אינו מכסה, ואסור להניח שכן:** מנוע שנתקע בלולאה על החוט הראשי.
+ * `setTimeout` צריך בדיוק את החוט החסום, ולכן הוא לא יירה — הפתיחה תישאר
+ * תלויה לנצח, בלי שגיאה ובלי דרך לצאת. זה אינו תיאורטי: `w:defaultTabStop`
+ * של אפס עושה בדיוק את זה (ראו docs/engine-gaps.md). הגנה כזאת חייבת לקרות
+ * לפני שהמנוע רואה את הבייטים — engine/docx-preflight.ts.
+ */
+export const OPEN_TIMEOUT_MS = 120_000;
+
+/**
+ * ההודעה של פתיחה שהמשתמש נטש („דלג” בשורת המצב).
+ *
+ * דחייה ולא הבטחה שנשארת תלויה, מפני שהפתיחה מפורקת כאן ומי שקרא חייב לדעת
+ * שלא תגיע תוצאה. `EditorSwap` הוא זה שבולע אותה — הוא מקדם את הדור לפני
+ * הביטול, ולכן התוצאה שם היא `superseded` ולא `failed`, ושום שגיאה אינה
+ * מגיעה לשורת המצב. ראו sessions/editor-swap.ts.
+ */
+export const OPEN_CANCELLED_MESSAGE = 'פתיחת המסמך בוטלה';
+
+/**
+ * ההודעה שמגיעה מ-exception של SuperDoc. ה-union מגיע מארבעה מקומות שונים
+ * במנוע ואינו מנורמל, ולכן קוראים אותו בהגנה במקום להניח שדה.
+ */
+export function exceptionToError(payload: SuperDocExceptionPayload): Error {
+  const raw: unknown = payload?.error;
+  if (raw instanceof Error) return raw;
+  if (typeof raw === 'string' && raw.trim() !== '') return new Error(raw);
+
+  const code = payload && 'code' in payload ? payload.code : undefined;
+  if (typeof code === 'string' && code !== '') {
+    return new Error(`המנוע דיווח על שגיאה (${code})`);
+  }
+  return new Error('טעינת המסמך נכשלה');
+}
+
+export function createEditor(options: CreateEditorOptions): Promise<EditorSession> {
+  // התחנה מדווחת כאן ולא ממי שקרא, ובכוונה: כאן המנוע כבר בזיכרון, וזה הרגע
+  // שבו „פותח את המסמך” נכון. אחרי הפתיחה הראשונה מסך הטעינה סגור וזה no-op.
+  splashStage(SPLASH_STAGES.documentOpening, 'פותח את המסמך…');
+
+  const {
+    container,
+    source,
+    onError,
+    onStatus,
+    onUpdate,
+    onPaginationUpdate,
+    timeoutMs = OPEN_TIMEOUT_MS,
+    signal,
+  } = options;
+
+  return new Promise((resolve, reject) => {
+    let instance: SuperDoc | undefined;
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    /** כשל שהגיע לפני שהבנאי חזר, ולכן לא היה מה לפרק באותו רגע. */
+    let pendingTeardown = false;
+
+    /** כל מה שממתין לתשובה: השעון, וההאזנה ל„דלג”. */
+    function stopWaiting(): void {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    }
+
+    /**
+     * „דלג”. אותו מסלול בדיוק כמו כשל לפני `onReady` — כולל פירוק המופע
+     * החצי-בנוי, שהוא כל הטעם שיש בביטול (ראו `CreateEditorOptions.signal`).
+     * `pendingTeardown` מכסה את המקרה התיאורטי שבו האיתות כבר מורם כשנכנסים
+     * לכאן, כלומר לפני שהבנאי חזר.
+     */
+    function onAbort(): void {
+      if (settled) return;
+      settled = true;
+      stopWaiting();
+      if (instance) destroy(instance);
+      else pendingTeardown = true;
+      reject(new Error(OPEN_CANCELLED_MESSAGE));
+    }
+
+    const disposers: Array<() => void> = [];
+    let destroyed = false;
+
+    function destroy(target: SuperDoc): void {
+      if (destroyed) return;
+      destroyed = true;
+      // קודם ה-subscriptions שלנו: listener שירוץ אחרי הפירוק יקרא state
+      // של controller מפורק.
+      for (const dispose of disposers.splice(0)) {
+        try {
+          dispose();
+        } catch (error) {
+          console.error('[otzaria-word] כשל בביטול subscription', error);
+        }
+      }
+      target.destroy();
+    }
+
+    // הצמדת לחיצה לשורה הקרובה (pointer-snap.ts). **לפני** הבנאי, ובכוונה:
+    // המאזין מחליף את קואורדינטות האירוע, וזה עוזר רק אם הוא רץ לפני המאזינים
+    // שהמנוע רושם על window/document בבנייה — סדר הרישום הוא סדר הריצה.
+    disposers.push(installPointerSnap(container).dispose);
+
+    const superdoc = new SuperDoc({
+      selector: container,
+      document: source,
+
+      // הממשק כולו שלנו — SuperDoc לא מרנדר שום toolbar, dialog או popover.
+      ui: false,
+
+      // יחידת המידה של הסרגל ושל שדות המרחק. ברירת המחדל של המנוע היא
+      // `'in'` — ברירת המחדל של Word en-US — וזו הסיבה שפאנל הכותרות שלו הציג
+      // „0.49 in”: 1.25 ס"מ, שהם ברירת המחדל של Word העברי (ראו
+      // HEADER_DISTANCE_DEFAULT_CM ב-page-setup.ts), באינצ'ים. כל הממשק שלנו
+      // מקליד ומציג סנטימטרים, ושתי יחידות באותו מסמך הן מספר שהמשתמש קורא
+      // לא נכון — לא קוסמטיקה.
+      measurementUnit: 'cm',
+
+      // התוסף עובד אופליין וללא הרשאת רשת; טלמטריה תיצור קריאות שייחסמו.
+      telemetry: { enabled: false },
+
+      // לחיצה על קישור `otzaria://` מנווטת בקורא. ברירת המחדל של המנוע היא
+      // פתיחה בדפדפן, וה-WebView חוסם `window.open` — כלומר בלי זה קישור
+      // עומק שנוצר במסמך (ראו at-mention.ts) אינו עושה דבר. כל href אחר
+      // ממשיך להתנהג כרגיל.
+      //
+      // **נמדד שהמסלול הזה אינו נקרא כיום**: המנוע חוסם את הסכימה עוד לפני
+      // ההפעלה, ולכן הלחיצה מטופלת ב-engine/otzaria-link-click.ts. הוא נשאר
+      // מחווט כדי שהיום שבו הסכימה תעבור לא ידרוש שינוי — ולכן גם הוא מדווח
+      // כשלים, ואינו בולע אותם כפי שעשה קודם.
+      hyperlinks: {
+        onActivate: createOtzariaLinkActivation({
+          navigate: (target) => {
+            void openOtzariaLink(target).then((result) => {
+              if (!result.ok) onStatus?.(result.message, true);
+            });
+          },
+          onStatus,
+        }),
+      },
+
+      // דיאלוג הסיסמה המובנה של המנוע פועל גם כש-ui: false — הוא surface של
+      // modules ולא של ui — והוא "לוקח אחריות" על DOCX מוצפן: הוא מטפל
+      // ב-DOCX_PASSWORD_REQUIRED בעצמו ואינו פולט exception. התוצאה הייתה
+      // הבטחה שאינה מסתיימת: דיאלוג באנגלית מעל הממשק שלנו, וביטול שלו משאיר
+      // את הפתיחה תלויה לנצח. מכובה — כך שהכשל מגיע כ-exception ומטופל.
+      // דיאלוג סיסמה בעברית הוא פיצ'ר לשלב מאוחר, לא תופעת לוואי.
+      modules: { surfaces: { passwordPrompt: false } },
+
+      // ב-file:// חייבים workers מ-blob: . undefined משאיר את ברירת המחדל
+      // של SuperDoc, שנכונה בפיתוח מ-localhost.
+      workerUrls: engineWorkerUrls(),
+
+      // כל שינוי במסמך. ה-session מסמן ממנו dirty; אין קריאה ל-DOM.
+      onEditorUpdate: onUpdate ? () => onUpdate() : undefined,
+
+      // מספר העמודים, אחרי כל מעבר פריסה. ראו onPaginationUpdate למעלה.
+      onPaginationUpdate: onPaginationUpdate
+        ? ({ totalPages }) => onPaginationUpdate(totalPages)
+        : undefined,
+
+      // ה-payload נושא את המופע המוכן. משתמשים בו, ולא ב-closure, כדי לא
+      // להישען על סדר ההשמה של הבנאי.
+      onReady: ({ superdoc: ready }) => {
+        if (settled) return;
+        settled = true;
+        stopWaiting();
+        const session: EditorSession = {
+          superdoc: ready,
+          ui: ready.ui,
+          container,
+          onDispose(dispose) {
+            if (destroyed) {
+              dispose();
+              return;
+            }
+            disposers.push(dispose);
+          },
+          destroy: () => destroy(ready),
+        };
+        // ידית QA: סקריפטי השער ב-scripts/*.mjs (zoom-qa וכדומה) מריצים את
+        // ה-dist הארוז וצריכים להגיע למופע החי; Vue ב-production אינו חושף
+        // את עץ הרכיבים, ולכן אין דרך אחרת. אותו אובייקט session בדיוק —
+        // לא עותק, שלא ייווצרו שני חוזי פירוק. קוד האפליקציה אינו קורא כאן.
+        (window as unknown as { __otzariaEditor?: EditorSession }).__otzariaEditor = session;
+        // לחיצה כפולה שבוחרת מילה שלמה גם בטקסט מנוקד, ושלוש לחיצות שבוחרות קטע —
+        // ראו word-selection.ts. כאן ולא ליד `localizeEngineChrome`, מפני שזה זקוק
+        // למופע עצמו: המופע מוכר רק ב-onReady, ו-`session.onDispose` הוא גם מה
+        // שמטפל במקרה שהפירוק כבר רץ.
+        session.onDispose(installWordSelection(container, ready).dispose);
+        // לחיצה בשטח האפור שסביב העמוד אינה מוציאה את המיקוד מהמסמך, ולחיצה
+        // שנחתה שם כשהמיקוד היה ברצועה מחזירה אותו — ראו click-focus.ts.
+        // כאן ולא לפני הבנאי: החזרת המיקוד היא דרך המופע.
+        session.onDispose(installClickFocus(container, ready).dispose);
+        // מברשת עיצוב: המנוע מחיל רק כשמישהו קורא ל-notifyPointerUp/notifyKeyUp
+        // של ui.formatPainter, וזה בדיוק מה ש-SuperToolbar עושה — אבל הוא לא קם
+        // כש-ui: false. ראו format-painter.ts.
+        session.onDispose(installFormatPainter(container, ready).dispose);
+        resolve(session);
+      },
+
+      onException: (payload) => {
+        const error = exceptionToError(payload);
+        onError?.(error, payload);
+        if (settled) return;
+        settled = true;
+        stopWaiting();
+        // כשל לפני onReady משאיר מופע חצי-בנוי עם workers פתוחים. אם ה-exception
+        // נורה מתוך הבנאי עצמו — והטיפוסים מתעדים מסלול כזה, שבו הריצה "mounts
+        // only enough state to report that error" — instance עדיין undefined,
+        // ולכן הפירוק נדחה לרגע שאחרי הבנאי.
+        if (instance) destroy(instance);
+        else pendingTeardown = true;
+        reject(error);
+      },
+    });
+
+    instance = superdoc;
+    if (pendingTeardown) destroy(superdoc);
+
+    // עברות שכבת הכותרות שהמנוע מצייר — ראו hf-chrome.ts ו-engine-chrome.css.
+    // מותקן על ה-container ולא על המסמך, ונרשם כ-disposer: destroy מפרק את
+    // ה-observer *לפני* המנוע, כדי שלא ירוץ על עץ שכבר נפרק.
+    disposers.push(localizeEngineChrome(container).dispose);
+
+    if (settled) return;
+    timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      stopWaiting();
+      destroy(superdoc);
+      reject(new Error('פתיחת המסמך לא הסתיימה בזמן סביר'));
+    }, timeoutMs);
+
+    // אחרי השעון ולא לפניו: `onAbort` מנקה את שניהם, ולכן ההאזנה נרשמת רק
+    // כשיש כבר מה לנקות. ה-`aborted` הוא מסלול אמיתי ולא הגנה תיאורטית —
+    // ביטול שהגיע בזמן השלבים שלפני המנוע מרים את האיתות לפני הקריאה לכאן.
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}

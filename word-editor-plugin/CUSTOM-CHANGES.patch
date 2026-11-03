@@ -1,0 +1,125 @@
+diff --git a/index.html b/index.html
+index ab29d05..3a2b438 100644
+--- a/index.html
++++ b/index.html
+@@ -93,6 +93,13 @@
+       })();
+     </script>
+ 
++    <!-- English interface mode: language toggle + live UI translation -->
++    <script src="./assets/english-mode.js"></script>
++
++    <!-- Live transcription panel: Hebrew Live Transcribe (127.0.0.1:47321)
++         and Otzaria Voice (127.0.0.1:47811) -->
++    <script src="./assets/live-transcribe.js"></script>
++
+     <!-- מסך הטעינה. ה-CSS כאן ולא בגיליון חיצוני, ובכוונה: הוא חייב להיות
+          מצויר לפני שנטענת ולו שורה אחת מקוד התוסף, וכל בקשה נוספת היא עוד
+          סיבוב שבו המסך לבן. מאותה סיבה אין כאן הגופן הארוז — הוא מותקן
+diff --git a/public/manifest.json b/public/manifest.json
+index ba39902..764f79d 100644
+--- a/public/manifest.json
++++ b/public/manifest.json
+@@ -1,10 +1,10 @@
+ {
+   "schemaVersion": 1,
+-  "id": "com.otzaria_word_editor.superdoc",
+-  "name": "וורד לאוצריא",
+-  "version": "6.8.0",
+-  "description": "עורך מסמכים בסגנון Word על מנוע SuperDoc, לכתיבת חידושי תורה בתוך אוצריא",
+-  "author": "ypl, netanel",
++  "id": "com.otzaria_word_editor.superdoc.custom",
++  "name": "וורד מותאם",
++  "version": "6.8.1",
++  "description": "עורך Word מותאם לאוצריא (SuperDoc 6.8) עם ממשק בעברית או באנגלית והכתבה קולית דרך Hebrew Live Transcribe.",
++  "author": "ypl, netanel (מותאם)",
+   "type": "webapp",
+   "category": "Utilities",
+   "stability": "experimental",
+@@ -29,7 +29,8 @@
+   "network": {
+     "enabled": true,
+     "allowlist": [
+-      "http://127.0.0.1:47811"
++      "http://127.0.0.1:47811",
++      "http://127.0.0.1:47321"
+     ]
+   },
+   "contributes": {
+@@ -39,25 +40,30 @@
+           "id": "otzaria-word-send-to-document",
+           "title": "שלח למסמך",
+           "icon": "document_text_24_regular",
+-          "contexts": ["reader-selection", "reader-page-shape-selection"],
++          "contexts": [
++            "reader-selection",
++            "reader-page-shape-selection"
++          ],
+           "openPlugin": true
+         }
+       ],
+       "toolbarItems": [
+         {
+           "id": "otzaria-word-edit-book",
+-          "title": "ערוך בוורד לאוצריא",
++          "title": "ערוך בוורד מותאם",
+           "icon": "document_edit_24_regular",
+-          "contexts": ["reader-text"],
++          "contexts": [
++            "reader-text"
++          ],
+           "openPlugin": true
+         }
+       ]
+     },
+     "toolTab": {
+-      "title": "וורד לאוצריא",
++      "title": "וורד מותאם",
+       "order": 100,
+       "defaultPinned": true,
+       "iconName": "document_text_24_regular"
+     }
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/ui/ribbon/i18n.ts b/src/ui/ribbon/i18n.ts
+index f3295d1..4a15015 100644
+--- a/src/ui/ribbon/i18n.ts
++++ b/src/ui/ribbon/i18n.ts
+@@ -51,12 +51,34 @@ const locale = ref<MenuLocale>('he');
+  * רק `'en…'` מתרגם לאנגלית; כל יתר הערכים (כולל `'he-IL'`, `undefined`,
+  * וכשל אתחול) משאירים עברית — שפת המקור של התוסף.
+  */
++type LangHooks = {
++  __otzariaHostLang?: string | null;
++  __otzariaLangOverride?: string;
++  __otzariaApplyUiLanguage?: () => void;
++  __otzariaMenuLocale?: { setRaw(v: string): void };
++};
++
+ export function setMenuLocale(language: string | null | undefined): void {
+-  const code = (language ?? '').toLowerCase().split(/[-_]/)[0];
++  // English interface mode (public/assets/english-mode.js): remember what the
++  // host reported, and let the user's own choice in the title bar win over it.
++  const w = (typeof window !== 'undefined' ? window : {}) as LangHooks;
++  w.__otzariaHostLang = language ?? null;
++  const chosen = w.__otzariaLangOverride || language;
++  const code = (chosen ?? '').toLowerCase().split(/[-_]/)[0];
+   locale.value = code === 'en' ? 'en' : 'he';
+   if (typeof document !== 'undefined') {
+     document.documentElement.setAttribute(MENU_LOCALE_ATTRIBUTE, locale.value);
+   }
++  if (typeof w.__otzariaApplyUiLanguage === 'function') w.__otzariaApplyUiLanguage();
++}
++
++if (typeof window !== 'undefined') {
++  (window as LangHooks).__otzariaMenuLocale = {
++    setRaw(v: string) {
++      locale.value = v === 'en' ? 'en' : 'he';
++      document.documentElement.setAttribute(MENU_LOCALE_ATTRIBUTE, locale.value);
++    },
++  };
+ }
+ 
+ /** השפה שנקבעה. נקראת ממי שאינו תבנית — ראו `engine/hf-chrome.ts`. */

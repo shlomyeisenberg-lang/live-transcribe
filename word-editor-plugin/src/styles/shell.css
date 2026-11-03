@@ -1,0 +1,340 @@
+/* מעטפת החלון: פס עליון קבוע, אזור מסמך שנגלל, ושורת מצב.
+   כל הצבעים דרך var(--color-*) והגופנים דרך var(--font-*) — ראו tokens.css.
+
+   הערה על האכיפה: ולידציית העיצוב של אוצריא סורקת קובצי *.css ובלוקי <style>
+   ב-HTML. באריזה שלנו Vite מטמיע את ה-CSS לתוך app.js ומזריק אותו בזמן ריצה,
+   ולכן בפועל הכללים כאן אינם נסרקים. הם נשמרים בכל זאת: הם מדריך העיצוב של
+   אוצריא, וגם צורת האריזה יכולה להשתנות. */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-main);
+  font-size: var(--font-size-ui);
+  line-height: var(--line-height);
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+/* פס הכותרת. הגדלים כאן הם px קשיחים בכוונה, לפי DESIGN_GUIDE.md: הפס לא
+   אמור לגדול עם גודל הגופן של הספר. הסלקטור חייב להישאר topbar — ולידציית
+   העיצוב מחריגה אותו לפי השם הזה. */
+.topbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar-height);
+  padding-inline: 16px;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+button {
+  /* לא inherit: ולידציית העיצוב דורשת ש-font-family יהיה var(--font-*) ואין לה
+     חריג למילות מפתח. */
+  font-family: var(--font-main);
+  font-size: inherit;
+  padding: 6px 14px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-primary-subtle);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* אזור המסמך. flex ולא חישוב גבהים — פס או שורת מצב שישתנו לא ישברו אותו.
+
+   הרקע נקרא מ-`--word-canvas-bg`, כמו בכלל ה-`scoped` המקביל ב-App.vue (שהוא
+   שמנצח כאן, בזכות מאפיין ה-scope): הבד הוא האלמנט היחיד שצבע הרקע של המשתמש
+   חל עליו, ושתי ההצהרות חייבות לנקוב באותו מקור. ראו styles/tokens.css. */
+.editor-stack {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background-color: var(--word-canvas-bg);
+}
+
+/* כל מסמך מקבל host משלו, וכולם באותו מקום: מסמך שנטען יושב מעל הפעיל עד
+   שהוא מוכן. ראו sessions/editor-swap.ts.
+
+   `direction: ltr` כאן הוא הצהרה על **סרגל הגלילה**, ולא על התוכן. הצד שבו
+   הדפדפן מצייר את הסרגל האנכי נגזר מכיווניות מיכל הגלילה עצמו, ואין לו מאפיין
+   נפרד: מיכל שיורש rtl מ-`<html dir="rtl">` מקבל סרגל בשמאל. ב-Word העברי
+   הסרגל בימין, ו-`direction` על המיכל הוא הדרך היחידה להזיז אותו לשם. נמדד
+   בשער check:rtl: `clientLeft` על מיכל בלי גבול הוא רוחב הסרגל כשהוא בשמאל
+   ואפס כשהוא בימין.
+
+   `direction: rtl` ו-text-align אינם כאן, בכוונה: כיווניות **התוכן** היא חלק
+   ממודל המסמך — docDefaults, המקטע והפסקה, ראו engine/document-defaults.ts
+   ואת שער check:rtl שמודד את שלוש הקבלות של המנוע. כפיית rtl מ-CSS על מיכל
+   הגלילה עשתה שני נזקים: היא דחקה את הדף לקצה הימני והשאירה חצי מסך אפור
+   וריק, והיא דרסה מסמכי LTR שנפתחו מקובץ — שם הכיווניות מגיעה מה-DOCX ולא
+   מאיתנו.
+
+   ולמה ltr אינו נזק שלישי: המנוע מסמן פסקה RTL במפורש — `dir="rtl"` **וגם**
+   `style="direction: rtl"` — ומסיר את שניהם בפסקה LTR (נמדד באריזה). כלומר
+   פסקה עברית אינה תלויה בירושה מהמיכל, ופסקה לועזית יורשת מעתה ltr במקום
+   rtl. שער check:rtl מודד בדיוק את זה: הוא קורא `direction` ו-`text-align`
+   מחושבים על הפסקה שרונדרה, ולא את ההצהרה שלנו על עצמנו. תכונת ה-`dir` אינה
+   נוגעת בזה — לא נגענו בה, וכללי המנוע שנשענים על `[dir="rtl"]` ממשיכים
+   להיאחז ב-`<html>`.
+
+   **שני דברים כן משתנים, ושניהם מטופלים.** האחד: שכבת ה-overlay של הכותרות
+   (ראו styles/engine-chrome.css) זורמת מעתה ltr. זה שיפור ולא נזק — כל ה-CSS
+   של המנוע שם פיזי ומכויל ל-LTR (`padding: 0 4px 0 6px`, `margin: 0 0 0 auto`
+   על תיבת המספר; נמדד: אפס מאפיינים לוגיים), ובמיכל rtl הוא היה מתהפך נגד
+   כוונתו. השני: כיוון הגלילה האופקית וצד ההצמדה של העמוד בזום — שלושת הכללים
+   שמתחת נגזרים מכיווניות המיכל, וההצמדה בגלילה עברה ל-engine/zoom-center.ts.
+   ראו שם. */
+.editor-stack__host {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  direction: ltr;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: transparent transparent;
+}
+
+/* :hover חל גם כשהעכבר מעל צאצא; אין צורך ב-:has() סביב עץ המסמך. */
+.editor-stack__host:hover {
+  /* הסרגל התקני מקבל רק צבעים אחידים — כאן המשטח שמתחת ל-`--statusbar-bg`.
+     אין כאן `::-webkit-scrollbar`, בכוונה: ב-Chromium `scrollbar-color` מבטל
+     אותו (נמדד ב-Chrome 154 — 15px ברירת מחדל במקום הרוחב שהכלל ביקש). */
+  scrollbar-color: var(--color-outline) var(--color-surface);
+  scrollbar-width: auto;
+}
+
+/* מרכוז העמוד.
+
+   נמדד על ה-dist הארוז: המנוע מרנדר `.superdoc` כ-`display: flex; position:
+   relative` **בלי `justify-content`**, וב-style.css שלו יש גם
+   `.superdoc .superdoc__layers { margin: 0 }` — כלומר הוא מסיר במפורש את
+   האפשרות שהעמוד ימרכז את עצמו במרווח אוטומטי. המשמעות: המרכוז הוא באחריות
+   המיכל של האפליקציה המשלבת, ומעולם לא היה כאן. בלעדיו העמוד נצמד ל-inline
+   start של המיכל, עם חצי מסך אפור וריק לצדו.
+
+   זה הכלל היחיד שנוגע במחלקה של המנוע, ובכוונה: החלופות גרועות ממנו. flex על
+   ה-host שלנו לא עוזר (`.superdoc` נמתח לכל הרוחב), ו-margin על `__layers`
+   מחייב `!important` נגד `!important` של המנוע.
+
+   `center` ולא `safe center`, אף שכאן עמד `safe` קודם: תפקידו היה למנוע חיתוך
+   של תחילת העמוד ב-zoom גבוה, וזה עבר לכלל שמתחת — שמצמיד את העמוד עצמו לקצה
+   ההתחלה של המאגס ברגע שהוא גדול ממנו, ולכן הוא לעולם אינו נחתך. `safe` כאן
+   רק היה מזיז את נקודת העיגון (`R` בנוסחה שלמטה) בחלון צר מעמוד, ומקלקל את
+   החישוב שמסתמך עליה.
+
+   הכלל אינו תלוי בכיווניות: מרכוז הוא סימטרי, ולכן מעבר המיכל ל-ltr אינו נוגע
+   בו. */
+.editor-stack__host .superdoc {
+  direction: ltr;
+  justify-content: center;
+}
+
+/* המרווח האנכי שסביב ערימת העמודים — „המשטח האפור” של Word.
+
+   מה היה: מיכל העמודים של המנוע (`.presentation-editor`, אותו אלמנט שנושא גם
+   את `.superdoc-layout`) הוא `display: flex; flex-direction: column` עם
+   `gap: 24px` — כלומר **בין** עמודים כבר יש מרווח, אבל מעל הראשון ומתחת
+   לאחרון אין. נמדד ב-CDP על ה-dist הארוז, בארבעה אחוזי זום: המרווח בין
+   העמודים היה 24/14/36/72 פיקסלים (100%/60%/150%/300%) ובשני הקצוות `0px`
+   בכולם. התוצאה על המסך היא שראש העמוד הראשון נושק לתחתית הרצועה ותחתית
+   האחרון לשורת המצב, והמסמך נראה חתוך במקום מונח.
+
+   24px, ולא ערך משלנו: זה בדיוק ה-`gap` שהמנוע כותב בין העמודים, ולכן שלושת
+   המרווחים — מעל, בין, ומתחת — יוצאים זהים, וגדלים וקטנים יחד עם הזום (הם
+   בתוך ה-`scale()`). זו גם ההתנהגות של Word: הרווח מעל העמוד הראשון הוא אותו
+   רווח שבין עמודים. `padding` על המיכל ולא `margin` על העמודים, מאותה סיבה
+   בדיוק: המרווח האמצעי כבר מגיע מה-`gap`, ושתי מערכות מרווח על אותה ערימה הן
+   מרווח כפול באמצע.
+
+   `padding-block` ולא `padding`: הציר האופקי שייך למרכוז. `50%` בנוסחת
+   ה-`margin-inline-start` שמתחת נפתר מול תיבת התוכן של המיכל הזה, וריפוד
+   אופקי היה מזיז אותה ואיתה את המרכוז בכל אחוז זום.
+
+   `!important` — המנוע כותב `padding: 0px` **inline** על המיכל, לצד
+   `gap: 24px` ו-`display: flex` (נמדד בתכונת ה-style שלו), ואין דרך אחרת
+   לגבור על סגנון inline. הוא אינו „נלחם” בנו: זה כלל CSS ולא JavaScript,
+   ולכן הוא חל כבר בציור הראשון, בלי הבהוב ובלי „מי כתב אחרון” — אותו שיקול
+   שמתועד ב-styles/engine-chrome.css.
+
+   מה שנבדק לפני שזה נכתב, ולא הונח: המנוע מחזיק `PageGeometryHelper` שמחשב
+   „מרחק מראש המיכל אל ראש עמוד N” — ובמרחב החישוב הזה `getPageTop(0)` הוא
+   אפס, כלומר ריפוד היה יכול להזיז כל שכבה שנשענת על החישוב במקום על ה-DOM
+   (התיעוד שלו נוקב במפורש בשכבת הסימון כמי שסבלה מזה בעבר). נמדד ב-CDP:
+   קליק על שורה בעמוד השני מציב את `sd-v2-local-selection-caret` בדיוק על ראש
+   השורה — סטייה 0px, עם הריפוד ובלעדיו. שכבות המנוע מודדות
+   `getBoundingClientRect` בפועל.
+
+   שני שומרים: scripts/page-gutter-probe.mjs מודד שהמרווח מעל, בין ומתחת זהים
+   בכל אחוז זום — כלומר גם היום שבו המנוע ישנה את ה-`gap` שלו ייפול שם ולא
+   אצל המשתמש — ו-styles/print.css מאפס את הריפוד בגיליון. */
+.editor-stack__host .presentation-editor {
+  padding-block: 24px !important;
+}
+
+/* מרכוז הזום — ולמה אין כאן כלל.
+
+   נמדד על ה-dist הארוז: בהקטנה המנוע מציב `scale()` על מיכל העימוד
+   (`.presentation-editor`) עם `transform-origin` בפינת ההתחלה שלו
+   (`0px 0px` ב-100%, `left top` בזמן הזום — סגנון inline). כל חישוב המרכוז
+   שבכלל הבא נשען על העיגון הזה: הקצה המרונדר של קופסת הפריסה חייב להיות
+   קבוע בכל אחוז, אחרת אין ממה לחשב.
+
+   כאן עמד `transform-origin: right top !important`, ובצדק: כשמיכל הגלילה היה
+   rtl, הקופסה צמחה שמאלה מהקצה הימני, והעיגון השמאלי של המנוע גרר את התוכן
+   אל מחוץ למסך (נמדד: סטייה של 548px ב-60%). ההנחה של המנוע היא LTR — הוא
+   מפצה על ה-scale ברוחב פריסה של `P/z` ומצפה שהקופסה תצמח ימינה מהקצה
+   השמאלי — ומרגע שהמיכל עבר ל-ltr (ראו הכלל של `.editor-stack__host`) ההנחה
+   הזאת נכונה. `!important` שמצהיר בדיוק את מה שהמנוע כותב בעצמו הוא רעש, ולכן
+   הכלל נמחק ולא הוסב.
+
+   מה ששומר על זה: שער scripts/zoom-center-probe.mjs (npm run build && node
+   scripts/zoom-center-probe.mjs) נופל על origin שאינו בפינת ההתחלה של קופסת
+   הפריסה ועל סטיית מרכוז, ומצלם את המסך להשוואה ויזואלית ב-tmp/. כלומר יום
+   שהמנוע יזיז את העיגון ייפול שם, וזה הרגע להחזיר כלל — הפעם `left top`. */
+
+/* מרכוז העמוד בכל אחוז זום.
+
+   ההערה שלמעלה הסבירה מה מקבע את הקצה המרונדר של קופסת הפריסה; הכלל הזה קובע
+   איפה העמוד יושב **בתוכה**, וזה מה שקובע איפה הוא נראה על המסך.
+
+   בלעדיו הזום „לא מתמרכז אלא זז הצידה”: המנוע נותן לעמוד `margin: 0 auto`,
+   וב-zoom מעל 100% קופסת הפריסה צרה מהעמוד (רוחב הפריסה הוא `P/z`), המרווח
+   הפנוי שלילי, שני ה-`auto` קורסים לאפס והעמוד נדבק לקצה ההתחלה. נמדד בחלון
+   1440: ב-150% מרכז העמוד ב-529 מול מרכז מאגס 727.
+
+   `margin-inline-start` בלבד — הקצה השני נשאר ה-`auto` של המנוע, שבולע את
+   כל המרווח שנשאר וכך מצמיד את העמוד לקצה ההתחלה ועוד `a`. `!important` נגד
+   ה-`margin` שהמנוע כותב inline.
+
+   המאפיין לוגי, ולכן הכלל נשאר נכון אחרי שמיכל הגלילה עבר ל-ltr: צד ההצמדה
+   התחלף יחד עם פינת העיגון של ה-scale, ושני ההיפוכים מבטלים זה את זה — נמדד
+   בשער, סטייה 0px בכל ארבעת האחוזים. מה שכן התחלף הוא **נקודת הפתיחה** בזום
+   שגולש: מיכל ltr נח בקצה השמאלי, כלומר בסופי השורות העבריות ולא בתחילתן.
+   ההצמדה כאן היא מה שמבטיח שכל העמוד נגיש בגלילה, ומי שמחזיר את הגלילה עצמה
+   אל תחילת השורה אחרי שינוי זום הוא engine/zoom-center.ts.
+
+   הנוסחה, הגזירה והמדידות — engine/zoom-center.ts, שגם מפרסם את שלושת
+   המשתנים (`z`, `1/z`, ורוחב המאגס). בקצרה: `a = 50% - min(P, V/z)/2`,
+   כש-`100%` בשולי העמוד הוא `P/z` ולכן `P = 100%·z`. הענף הראשון ממרכז
+   כשהעמוד נכנס למאגס, והשני מצמיד לקצה ההתחלה כשהוא גדול ממנו — כדי
+   שתחילת השורה תישאר בהישג גלילה. הנפילה בחן היא `100vw` ו-`1`: מרכוז
+   מלא, בלי הצמדה. */
+.editor-stack__host .presentation-editor > .superdoc-page {
+  margin-inline-start: calc(
+    50% -
+      min(
+        100% * var(--otzaria-zoom, 1),
+        var(--otzaria-viewport-width, 100vw) * var(--otzaria-zoom-inverse, 1)
+      ) / 2
+  ) !important;
+}
+
+/* visibility ולא display: ל-host שנטען חייב להיות box אמיתי, אחרת המנוע מודד
+   עימוד באלמנט בגודל אפס. */
+.editor-stack__host--pending {
+  visibility: hidden;
+}
+
+/* סמן כתיבה מהבהב: המנוע מכבה את ההבהוב שלו תחת `prefers-reduced-motion`,
+   וב-Word הסמן מהבהב תמיד — הוא אינדיקטור מיקום ולא קישוט. ה-keyframes מוגדר
+   כאן שוב כרשת ביטחון, אם המנוע יסיר את שלו. ראו tests/contract/caret-blink.
+
+   שני הבוררים, ושניהם חיים. נמדד ב-Chrome על 2.15.0: אלמנט הסמן נושא גם
+   `class="sd-v2-local-selection-caret"` וגם `data-v2-local-selection-caret="true"`,
+   ו-`querySelectorAll('[data-v2-local-selection-caret]')` מחזיר אותו. חיפוש
+   המחרוזת באריזת המנוע **אינו** מוצא את התכונה, מפני שהמנוע מציב אותה דרך
+   `dataset.v2LocalSelectionCaret`; מה שכן נמצא באריזה הוא
+   `data-v2-local-selection-caret-styles`, וזו תכונה על אלמנט ה-`<style>`
+   שהמנוע מזריק — לא על הסמן. */
+.sd-v2-local-selection-caret,
+[data-v2-local-selection-caret] {
+  animation: sd-v2-local-caret-blink 1.06s steps(1, end) infinite !important;
+  will-change: opacity;
+}
+
+@keyframes sd-v2-local-caret-blink {
+  0%,
+  49.999% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* וכשאין מיקוד — אין סמן.
+   סמן מהבהב אומר „ההקלדה תיכנס לכאן”, ולכן כשהמיקוד אינו במסמך — החלון עבר
+   לחלון אחר, או שפקד של הממשק לקח אותו — הוא אומר דבר שאינו נכון. זו התנהגות
+   Word, וגם של כל שדה טקסט בדפדפן. מי שמחליט זה ui/shell/caret-focus.ts, ושם
+   גם המדידה שממנה זה בא.
+
+   `opacity` ולא `display`: הקופסה נשארת, ומי שמודד את **מקום** הסמן ולא את
+   נראותו (scripts/qa/click-snap-qa.mjs, scripts/qa/rtl-caret-probe.mjs)
+   ממשיך לקבל את אותו מלבן. שתי ההצהרות יחד ולא רק כיבוי האנימציה — אנימציה
+   שנעצרת משאירה את מה שהיה בפריים האחרון, כלומר סמן גלוי בחצי מהמקרים. */
+.word-app-shell[data-caret-idle='true'] .sd-v2-local-selection-caret,
+.word-app-shell[data-caret-idle='true'] [data-v2-local-selection-caret] {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+.status {
+  flex-shrink: 0;
+  padding: 4px 16px;
+  color: var(--color-on-surface-variant);
+  border-block-start: 1px solid var(--color-outline);
+}
+
+.status--error {
+  color: var(--color-error);
+}
+
+/* ידית הגרירה של הדיאלוגים הצפים.
+   גלובלי ולא scoped: עשרים וארבע כותרות בעשרים וארבעה קבצים, וההתנהגות אחת
+   (composables/dialog-drag.ts). `touch-action: none` הוא מה שמונע מהמסך הנוגע
+   לפרש את הגרירה כגלילה ולבלוע את ה-pointermove באמצע. */
+.dialog-drag-handle {
+  cursor: move;
+  touch-action: none;
+}
+
+/* כפתור ברירת המחדל של דיאלוג — זה ש-Enter מפעיל.
+   ההדגשה אינה קישוט: המשתמש צריך לראות **איזה** כפתור יופעל לפני שהוא לוחץ
+   Enter, ובלעדיה „אישור” ו„ביטול” נראים כשתי אפשרויות שקולות. הרקע הכחול
+   כבר מסמן „ראשי”, והמשקל מסמן „ברירת מחדל”.
+   ההתנהגות עצמה: composables/dialog-default-action.ts. */
+[data-default-action] {
+  font-weight: 600;
+}

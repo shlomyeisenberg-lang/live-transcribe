@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "com.otzaria_word_editor.superdoc.custom",
+  "name": "וורד מותאם",
+  "version": "6.8.1",
+  "description": "עורך Word מותאם לאוצריא (SuperDoc 6.8) עם ממשק בעברית או באנגלית והכתבה קולית דרך Hebrew Live Transcribe.",
+  "author": "ypl, netanel (מותאם)",
+  "type": "webapp",
+  "category": "Utilities",
+  "stability": "experimental",
+  "entrypoint": "index.html",
+  "minAppVersion": "0.9.97",
+  "sdkVersion": "1.x",
+  "permissions": [
+    "fs.user_files.read",
+    "fs.user_files.write",
+    "reader.open",
+    "reader.context_menu",
+    "reader.toolbar",
+    "app.startup_contributions",
+    "navigation.write",
+    "clipboard.read",
+    "library.refresh",
+    "library.books.read",
+    "library.content.read",
+    "app.open_url",
+    "network.localhost"
+  ],
+  "network": {
+    "enabled": true,
+    "allowlist": [
+      "http://127.0.0.1:47811",
+      "http://127.0.0.1:47321"
+    ]
+  },
+  "contributes": {
+    "startup": {
+      "contextMenuItems": [
+        {
+          "id": "otzaria-word-send-to-document",
+          "title": "שלח למסמך",
+          "icon": "document_text_24_regular",
+          "contexts": [
+            "reader-selection",
+            "reader-page-shape-selection"
+          ],
+          "openPlugin": true
+        }
+      ],
+      "toolbarItems": [
+        {
+          "id": "otzaria-word-edit-book",
+          "title": "ערוך בוורד מותאם",
+          "icon": "document_edit_24_regular",
+          "contexts": [
+            "reader-text"
+          ],
+          "openPlugin": true
+        }
+      ]
+    },
+    "toolTab": {
+      "title": "וורד מותאם",
+      "order": 100,
+      "defaultPinned": true,
+      "iconName": "document_text_24_regular"
+    }
+  }
+}

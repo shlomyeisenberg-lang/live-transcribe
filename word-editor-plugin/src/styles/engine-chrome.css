@@ -1,0 +1,121 @@
+/* עברות ה-chrome של המנוע: פאנל „אפשרויות” של הכותרת העליונה והתחתונה.
+
+   ה-DOM כאן אינו שלנו. `ui: false` מכבה את ה-toolbar, הדיאלוגים והפופאוברים
+   של SuperDoc, אבל שכבת ה-overlay שמצוירת מעל בד העימוד אינה חלק מ-`ui` —
+   היא של מנוע ה-DOCX (`V2HeaderFooterOverlay` ב-@superdoc/docx-engine), והיא
+   ממשיכה לצייר את עצמה באנגלית: „Different First Page”, „Header from Top”
+   וכן הלאה. אין לה מתג ב-`modules.surfaces` כמו שהיה לדיאלוג הסיסמה, ואין לה
+   הגדרת טקסטים כמו ש-`findReplace` ו-`passwordPrompt` מקבלים — המחרוזות
+   מוטמעות קשיח באריזה שלה. הרישיון הקנייני של המנוע אוסר לשנות את האריזה,
+   ו-`npm install` היה מוחק כל תיקון כזה בלי סימן. לכן העברות היא מבחוץ.
+
+   למה CSS ולא JavaScript: ארבע התוויות בפאנל הן vnodes מוקפאים של Vue
+   (`_cache[n] ||= createElementVNode(...)` עם patchFlag ‎-1; נמדד באריזה) —
+   המנוע בונה אותן פעם אחת ומשבט אותן בכל פתיחה של הפאנל, והפאנל עצמו הוא
+   `v-if`. משמע: הפתיחה הראשונה בכל מסמך מציגה אנגלית עד ש-MutationObserver
+   מגיע — הוא נקרא ב-microtask **אחרי** ה-patch, כלומר פריים שלם של „Different
+   First Page” בכל פעם שנפתח פאנל בפעם הראשונה. כלל CSS אינו מהבהב ואינו רץ
+   בכלל, וגם אין בו „מי כתב אחרון” מול ה-observer.
+
+   (הניסוח „החלפת JS מתאפסת בכל פתיחה” היה מדויק חלקית בלבד: Vue משבט
+   מ-`vnode.el`, שמוצבע אל האלמנט שהורכב לאחרונה, ולכן כתיבה שלנו דווקא כן
+   הייתה נדבקת לשיבוט הבא. הנימוק שמחזיק הוא ההבהוב בפתיחה הראשונה.)
+   מה ש-CSS אינו יכול — `title`, `aria-label`, ותווית שנושאת מספר מקטע —
+   יושב ב-engine/hf-chrome.ts. ההפרדה מכוונת: אף תווית אינה מתורגמת בשני
+   המקומות, ולכן אין כאן „מי כתב אחרון”.
+
+   העיגון הוא בתכונות `data-sd-hf-option` — מזהים סמנטיים שהמנוע מסמן בהם כל
+   שורה בפאנל — ולא במחלקות (שנושאות hash של scope: `[data-v-57503068]`) ולא
+   במקום בסדר. שורה שתחליף מקום תקבל את התווית שלה ולא של שכנתה, וזה ההפרש
+   בין „הטקסט לא תורגם” ל„המתג הלא נכון מסומן”.
+   tests/contract/engine-hf-chrome.test.ts מאמת שכל מזהה כאן עדיין קיים
+   באריזת המנוע: שדרוג שישנה אותם ייפול שם, ולא אצל המשתמש כאנגלית שחזרה.
+
+   הנוסח הוא של Word העברי, וזהה למה שהרצועה שלנו אומרת על אותם מתגים בדיוק
+   („שונה בעמוד ראשון” ב-InsertTab.vue, „מרחק הכותרת מקצה הדף”
+   ב-HeaderDistanceDialog.vue). שני נוסחים לאותו מתג הם באג בפני עצמו.
+
+   **שער השפה.** התוסף מציג את הרצועה באנגלית כששפת המשתמש אנגלית (ui/ribbon/
+   i18n.ts, לפי `app.language` מ-`plugin.boot`), ולמשתמש כזה האנגלית של המנוע
+   היא בדיוק מה שצריך — עברות כאן הייתה הופכת מתיקון לרגרסיה. `:root:not(
+   [data-menu-locale='en'])` על כל כלל הוא מה שמכבה את השכבה שם. התכונה נכתבת
+   ב-`setMenuLocale`, והיעדרה הוא עברית — כלומר לפני האתחול הכללים חלים.
+   engine/hf-chrome.ts נכבה מאותו סימן בדיוק, ולכן שני חצאי העברות נדלקים
+   ונכבים יחד; בדיקת החוזה מאמתת גם את זה. */
+
+/* שני המתגים. `> span` הוא כל תוכן התווית של המנוע, ו-`::after` נכנס במקומו
+   אחרי תיבת הסימון — אותו סדר שהיה, מפני ש-`.v2-hf-option` הוא inline-flex
+   והפסאודו הוא פשוט הפריט האחרון בו. */
+:root:not([data-menu-locale='en']) [data-sd-hf-option='different-first-page'] > span,
+:root:not([data-menu-locale='en']) [data-sd-hf-option='different-odd-even'] > span {
+  display: none;
+}
+
+:root:not([data-menu-locale='en']) [data-sd-hf-option='different-first-page']::after {
+  content: 'שונה בעמוד ראשון';
+}
+
+:root:not([data-menu-locale='en']) [data-sd-hf-option='different-odd-even']::after {
+  content: 'שונה בעמודים זוגיים ואי-זוגיים';
+}
+
+/* שתי שורות המרחק. כאן התווית היא הילד הראשון (אחריה תיבת המספר ואחריה
+   יחידת המידה), ולכן `::before` ולא `::after` — אחרת התווית הייתה נוחתת מעבר
+   לתיבה. `span:first-child` הוא התווית בלבד: את יחידת המידה מעברתת
+   hf-chrome.ts, מפני שהיא תלויה ב-`measurementUnit` ומשתנה בזמן ריצה. */
+:root:not([data-menu-locale='en']) [data-sd-hf-option='header-from-top'] > span:first-child,
+:root:not([data-menu-locale='en']) [data-sd-hf-option='footer-from-bottom'] > span:first-child {
+  display: none;
+}
+
+:root:not([data-menu-locale='en']) [data-sd-hf-option='header-from-top']::before {
+  content: 'כותרת עליונה מקצה הדף';
+}
+
+:root:not([data-menu-locale='en']) [data-sd-hf-option='footer-from-bottom']::before {
+  content: 'כותרת תחתונה מקצה הדף';
+}
+
+/* רוחב יחידת המידה.
+
+   `.v2-hf-distance-unit` של המנוע הוא `width: 18px` — מכויל ל-„cm”/„in”.
+   נמדד ב-Chrome ב-12px/Assistant: „ס"מ” תופס 19px ו-„אינץ'” 22px, כלומר
+   הנוסח העברי גולש מהקופסה ואוכל מהמרווח הפנימי של הפאנל. היחידה עצמה
+   מתחלפת בזמן ריצה ולכן היא של hf-chrome.ts, אבל הרוחב הוא פריסה ולכן כאן.
+
+   `width: auto` ולא רוחב גדול יותר: `.v2-hf-distance` הוא flex עם
+   `justify-content: space-between`, והיחידה היא הפריט האחרון — רוחב לפי תוכן
+   הוא מה שנשאר נכון גם ביחידה שתיווסף. */
+:root:not([data-menu-locale='en']) [data-sd-hf-option='header-from-top'] .v2-hf-distance-unit,
+:root:not([data-menu-locale='en']) [data-sd-hf-option='footer-from-bottom'] .v2-hf-distance-unit {
+  width: auto;
+}
+
+/* באנר „edit-rejected" של המנוע — אין כאן כלל, וזה מכוון.
+
+   superdoc 2.11.0 ו-2.12.0 ציירו מעל בד המסמך הודעה אנגלית על מחיקה
+   במקלדת שנדחתה, גם תחת `ui: false` (דווח למעלה:
+   https://github.com/superdoc/docx-editor/issues/3957), וכאן היה כלל
+   שהסתיר אותה. ב-2.15.0-next.15 הבאנר ירד מהאריזה: לא העוטף
+   `.superdoc__mutation-status` ולא התכונה `data-superdoc-v2-edit-rejected`.
+   הדחייה מגיעה עכשיו רק דרך `onException` עם `code: 'edit-rejected'`
+   (create-editor.ts), ושם היא נרשמת ללוג — כמו שהייתה נרשמת גם קודם.
+   לכן הכלל נמחק ולא נשאר להסתיר DOM שאינו קיים.
+   tests/contract/engine-edit-rejected-banner.test.ts נופל אם הבאנר חוזר
+   לאריזה, ואז צריך להחזיר הסתרה — בלי `:has()`, מהסיבה שלמטה.
+
+   **הלקח שנשאר מהכלל: `:has()` נמדד כאן כמוקש.** הגרסה הראשונה של הכלל הסתירה
+   את העוטף דרך `.superdoc__mutation-status:has([data-superdoc-v2-edit-rejected])`,
+   וזה היה מקור האיטיות בהקלדה: `:has()` שהעוגן שלו יושב בתוך `.superdoc`
+   גרם ל-Blink לסמן את `.superdoc` כמושפע מ-`:has()`, ומרגע זה כל הוספה או
+   הסרה של צומת במסמך — כלומר כל תו שנקלד — תזמנה חישוב סגנון מחדש של
+   **כל תת-העץ** (2,748 אלמנטים במסמך של חמישה עמודים, 60–115ms לחישוב).
+   ב-50 הקשות נמדדו 42 חישובים כאלה ו-53 long tasks; מחיקת הכלל הזה בלבד,
+   בזמן ריצה ולפני ההקלדה, הורידה אותם ל-0 ול-3, ומחיקת כלל אקראי אחר לא
+   שינתה דבר (trace של Chrome, `disabled-by-default-devtools.timeline.invalidationTracking`:
+   „Affected by :has()” על `DIV.superdoc`, „Invalidation set invalidates
+   subtree”). הגרסה שהחליפה אותה הסתירה את ה-`<p>` כילד ישיר של העוטף
+   (`.superdoc__mutation-status > [data-superdoc-v2-edit-rejected]`), ובלי
+   `:has()` בכלל. שער ההיגיינה (tests/unit/css-hygiene.test.ts) חוסם `:has()`
+   חדש בגיליונות, ו-scripts/qa/typing-style-recalc-qa.mjs סופר את החישובים
+   המלאים בזמן הקלדה בדפדפן אמיתי, כדי שהתופעה לא תחזור בשקט. */

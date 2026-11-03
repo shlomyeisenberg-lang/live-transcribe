@@ -1,0 +1,15 @@
+## באגים — issue #14
+
+ב. [תלוי באוצריא — עדיין פתוח למשתמשים] „העלאת המסמך נכשלה” בשמירה ובשמירה בשם. השורש באוצריא: שער ה-WebView (shouldInterceptRequest/shouldOverrideUrlLoading) מאשר לתוסף רק נתיבי /f/ וחוסם את ה-PUT ל-/w/<token> → Failed to fetch. התיקון (isUploadUriForPlugin) נכנס ל-Otzaria/otzaria dev ב-3.9.2026 (קומיט 0b8559402), **אך רק בשער של plugin_tab_page.dart**; שער מופע הרקע (plugin_background_host.dart, `_isOwnFileServerPath`) נשאר חסום — ומכיוון ש-`backgroundEntrypointPath` נופל ל-entrypoint של הדף המלא כשאין `backgroundEntrypoint` במניפסט, אותו קוד שמירה בדיוק רץ שם. תוקן ונפתח כ-Otzaria/otzaria#1160 (עם שער סטטי, plugin_webview_file_server_gate_test.dart, כדי שלא יתוקן שוב שער אחד וישכח השני). אינו בשום release. בצד התוסף (sessions/save-coordinator.ts): beginWrite ו-upload הופרדו להודעות מובחנות, בלי כפילות תחילית; ב-host/files.ts האבחון בודק GET ל-/f/probe (שעובר את השער) ולא לשורש — והוא זה שמאתר את התקלה בפועל, כי החסימה מגיעה כ-TypeError בלי סטטוס (לתשובת ה-403 של השער אין כותרות CORS; נוסף רישום ללוג הריצה בצד אוצריא). לסגור רק אחרי release של אוצריא עם התיקון ושמירה אמיתית ב-Windows.
+
+## פיצ'רים
+
+בדיקת איות תורנית (issue #25) — נכנסה.
+(ב) [פתוח] אין הצעות תיקון, רק סימון. הצעות דורשות מרחק עריכה על 102,469 ערכים, וזו החלטת ביצועים בפני עצמה.
+
+## מעקב מנוע
+
+באנר „edit-rejected” של superdoc@2.11.0 — [סגור ב-superdoc 2.15.0-next.15] היה מוסתר אצלנו ב-engine-chrome.css, כי צויר באנגלית גם תחת `ui: false`. דווח כ-superdoc/docx-editor#3957; המנוע תיקן זאת ומפסיק לצייר את הבאנר. כלל ההסתרה הוסר, ו-tests/contract/engine-edit-rejected-banner.test.ts הפוך לבדוק את זה (קומיט 5f72a38)
+
+
+https://mitmachim.top/post/1238414

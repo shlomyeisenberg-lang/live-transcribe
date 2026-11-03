@@ -1,0 +1,172 @@
+/* הטוקנים של הממשק — מותאמים ל-Material 3 של אוצריא ול-Fluent Ribbon של Word.
+   הערכים כאן הם ברירת מחדל לפיתוח ומודרסים בזמן ריצה ע"י applyTheme (host/theme.ts). */
+:root {
+  /* צבעי בסיס M3 */
+  --color-primary: #1565c0;
+  --color-on-primary: #ffffff;
+  --color-secondary: #6750a4;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e8def8;
+  --color-on-secondary-container: #1d192b;
+  --color-surface: #f8f9fa;
+  --color-on-surface: #1a1a2e;
+  --color-on-surface-variant: #49454f;
+  --color-surface-container-high: #f3f2f1;
+  --color-surface-container-highest: #edebe9;
+  --color-error: #b00020;
+  --color-on-error: #ffffff;
+  --color-outline: #cbd5e1;
+  --color-outline-variant: #e1dfdd;
+  --color-scrim: rgba(0, 0, 0, 0.32);
+  --color-surface-highlight: rgba(255, 255, 255, 0.04);
+  /* שכבת הכהייה הניטרלית של הרקע העליון. מוגדרת כטוקן כדי ש-CSS צרכני
+     ישתמש בתפקיד צבע במקום להטמיע rgba ישירות. */
+  --color-shell-dim: rgba(0, 0, 0, 0.07);
+
+  /* סולם הדרגות שנגזרות מ-primary. שלוש דרגות שקופות ולא אחת: פקד שהעכבר
+     עובר מעליו ופקד דלוק שנראים זהים מוחקים את ההבחנה המרכזית ברצועה של Word.
+     8% ו-12% הם הערכים שמדריך העיצוב נוקב בהם (hover, ו-primary-subtle
+     להדגשה); 20% הוא דלוק+עכבר. host/theme.ts גוזר את כולן מחדש מצבע הנושא,
+     והערכים כאן הם ברירת מחדל תואמת ל-primary שלמעלה. */
+  --color-primary-hover: rgba(21, 101, 192, 0.08);
+  --color-primary-subtle: rgba(21, 101, 192, 0.12);
+  --color-primary-selected-hover: rgba(21, 101, 192, 0.2);
+  --color-secondary-subtle: rgba(103, 80, 164, 0.12);
+  /* רקע עדין לשגיאה — errorContainer של M3 אינו חלק מה-API, וזה הקירוב שהמדריך
+     נוקב בו (הצבע בשקיפות נמוכה). נדרש כדי שרקע השגיאה יזוז עם הערכה יחד עם
+     הטקסט שמעליו, ולא יישאר בבורדו של המצב הבהיר. */
+  --color-error-subtle: rgba(176, 0, 32, 0.12);
+  /* אטום ולא שקוף: זהו רקע ה-hover של כפתור ממולא, שכבר צבוע ב-primary.
+     נגזר כ-primary שנדחף אל צבע הטקסט — כלומר כהה יותר במצב בהיר ובהיר יותר
+     במצב כהה, ולכן הוא נשאר קריא בשני המצבים. */
+  --color-primary-filled-hover: #1656a3;
+
+  /* טוקנים ייעודיים לממשק — נגזרים ישירות מצבע הנושא של אוצריא (--color-primary).
+     כאן רק טוקנים שיש להם צרכן: tests/unit/css-hygiene.test.ts מודד את זה. */
+  --word-blue: var(--color-primary);
+  --word-blue-dark: var(--color-primary-filled-hover);
+  /* שלושת מצבי הפקד ברצועה, כל אחד בדרגה משלו */
+  --word-btn-hover: var(--color-primary-hover);
+  --word-btn-active: var(--color-primary-subtle);
+  --word-btn-active-hover: var(--color-primary-selected-hover);
+  --word-btn-active-border: var(--color-primary);
+  --word-group-label-color: var(--color-on-surface-variant);
+  --word-group-border: var(--color-outline-variant);
+  /* מפריד בין הרצועה לקנבס ולסרגלים; בערכות כהות משתמש במשטח של ערכת הנושא. */
+  --word-ribbon-bg: var(--color-surface-container-high);
+
+  /* הפס העליון — פס הכותרת והרצועה שסביב הכרטיס הלבן (App.vue) — הטאב
+     הפעיל של המסמכים, שמתמזג בו, וברירת המחדל של הבד (למטה).
+
+     גוון של אוצריא: הצבע של שורת טאבי המסמכים (`surfaceContainerHigh`)
+     מעורבב עם המשטח, כלומר בהיר ממנה. נגזר מערכת הנושא, ולכן נכון בשני
+     המצבים. 35% כתוב גם ב-TypeScript (`BAND_MIX`, composables/canvas-color.ts)
+     בשביל הפס בבורר „צבע רקע”, ו-tests/unit/canvas-color.test.ts מחזיק את
+     השניים זהים. */
+  --word-shell-band-bg: color-mix(in srgb, var(--color-surface-container-high) 35%, var(--color-surface));
+  --word-doctab-active-bg: var(--word-shell-band-bg);
+  /* הקו שמתחת לשורת טאבי המסמכים ומסביב לטאב הפעיל. גוון של הנושא ולא
+     `--color-outline-variant`: את זה אוצריא אינה שולחת, והוא נשאר אפור קבוע
+     שנראה כמו צל על ערכה צבעונית. */
+  --word-doctabs-border: var(--color-surface-container-highest);
+
+  /* צבע הבד — המשטח שסביב הדף, ורק הוא. בלי העדפה — צבע הפס העליון.
+
+     הטוקן נפרד מ-`--color-surface-container-highest` מפני שזה צובע גם את שני
+     הסרגלים, את הפינה שביניהם ואת כפתור היציאה ממצב מיקוד — ובלי טוקן נפרד,
+     „צבע רקע” של המשתמש היה נצבע גם עליהם. ומאותה סיבה הכיוון הוא מהפס לבד
+     ולא להפך: הדריסה של המשתמש היא סגנון inline על `--word-canvas-bg` בשורש
+     המסמך, כמו כל צבעי אוצריא, והיא אינה מגיעה לפס. היעדר העדפה הוא היעדר
+     ההצהרה, והבד חוזר לערך שכאן. */
+  --word-canvas-bg: var(--word-shell-band-bg);
+  --statusbar-bg: linear-gradient(to top, var(--color-surface-highlight), transparent var(--statusbar-height)), var(--color-surface);
+
+  /* גופנים.
+
+     `--font-main` הוא גופן ה*ממשק*, ולא גופן הקריאה של אוצריא: `applyTheme`
+     אינו דורס אותו (host/theme.ts), ולכן השרשרת כאן היא מה שהממשק מקבל בפועל.
+     כל חוליה בה היא sans בכוונה — גופן ספרים בכפתור בן 12px הוא הרגרסיה
+     שהובילה לכאן, ואין טעם להעמיד אותו כחוליה שנייה.
+
+     'Assistant' נארז עם התוסף (styles/fonts.ts) בארבעה משקלים אמיתיים, ולכן
+     בולד בממשק אינו מסונתז. גופני אוצריא המובנים מוזרקים כ-@font-face ל-WebView
+     לפני plugin.boot — אין לארוז אותם; מהם 'Rubik' הוא ה-sans, והוא החוליה
+     הבאה. Arial סוגר את השרשרת: יש בו עברית בווינדוס וב-macOS. */
+  --font-main: 'Assistant', 'Rubik', Arial, sans-serif;
+  --font-size-base: 18px;
+  --line-height: 1.5;
+  --font-size-ui: clamp(12px, calc(var(--font-size-base) * 0.78), 16px);
+  --font-size-tab: 13px;
+  --font-size-ribbon-btn: 12px;
+  --font-size-group-title: 11px;
+
+  /* רדיוסי צורה M3 */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
+
+  /* גבהים */
+  --topbar-height: 48px;
+  --tabbar-height: 28px;
+  /* שורת טאבי המסמכים, מעל פס הכותרת — גבוהה מ-`--tabbar-height` כדי שיהיה
+     מקום לקשתות של הטאב הפעיל (DocumentTabsBar.vue). */
+  --doctabs-height: 34px;
+  /* צל בולט לרצועת ה-Ribbon (מעל ומתחת) */
+  --ribbon-shadow-top: 0 -4px 10px rgba(0, 0, 0, 0.06);
+  --ribbon-shadow-bottom: 0 6px 18px rgba(0, 0, 0, 0.07);
+  --statusbar-height: 24px;
+
+  /* גאומטריית הרצועה — נגזרת משורה אחת, ולא ארבעה מספרים שנקבעו בנפרד.
+
+     זה היה מקור „הקפיצות”: `.word-ribbon-body` נשען על `min-height` בלבד,
+     וגובהו בפועל נקבע לפי הקבוצה הגבוהה בלשונית. כפתור גדול היה 68px, ומחסנית
+     של שלושה כפתורים קטנים 76px (3×24 + 2×2) — כלומר שני הדפוסים של הרצועה
+     מעולם לא היו באותו גובה. „סקירה”, שהחזיקה מחסנית של **ארבעה**, יצאה 126px
+     מול 96px בשאר, והמסמך קפץ 30px בכל החלפת לשונית.
+
+     הכלל שמחליף אותם הוא הכלל של Word: **כפתור גדול שווה בדיוק לשלוש שורות
+     קטנות**. משם הכול נגזר, ואי-אפשר להזיז אחד בלי השני.
+
+     22px לשורה ולא 24px, כי זה הגובה שכבר קיים כאן: `RibbonSelect` הוא 22px,
+     והוא יושב באותה שורה עם כפתורים בני 24px בקבוצת „גופן” — אי-יישור של 2px
+     שהיה בקוד מהיום הראשון. */
+  --ribbon-row-h: 22px;
+  --ribbon-row-gap: 2px;
+  --ribbon-content-h: calc(3 * var(--ribbon-row-h) + 2 * var(--ribbon-row-gap));
+  --ribbon-group-footer-h: 15px;
+
+  /* הרזרבה לפס הגלילה האופקי של הרצועה, ולכן חלק מהגובה: בלעדיה הפס היה מגדיל
+     את הקופסה בלשוניות שגולשות בלבד — קפיצה שנייה, תלוית רוחב חלון. הערך חייב
+     להיות זהה ל-`::-webkit-scrollbar { height }` ב-ribbon.css, ושם מוסבר למה
+     `scrollbar-width` הוסר משם כדי שהכלל הזה יחזור לפעול. */
+  --ribbon-scrollbar-h: 4px;
+
+  /* `box-sizing: border-box` גלובלי (shell.css), ולכן הגובה בולע גם את הריפוד
+     של גוף הרצועה וגם את `border-block-end` שלו. שניהם טוקנים, ולא 9px מחוברים
+     ביד: הקבוע ההוא נשאר נכון רק כל עוד איש אינו נוגע בריפוד, ושינוי שלו היה
+     מקטין את המקום הפנוי בשקט — הגובה קבוע, ולכן התוכן גולש ולא מרחיב.
+     ribbon.css צורך את אותם שני טוקנים, וזה מה שמחזיק את החשבון. */
+  --ribbon-body-pad: 4px;
+  --ribbon-body-border: 1px;
+  --ribbon-height: calc(
+    var(--ribbon-content-h) + var(--ribbon-group-footer-h) +
+      var(--ribbon-scrollbar-h) + 2 * var(--ribbon-body-pad) +
+      var(--ribbon-body-border)
+  );
+}
+
+:root[data-theme='light'] {
+  /* לבן קבוע במצב בהיר יוצר את הניגודיות הרצויה מול הקנבס והסרגלים. */
+  --word-ribbon-bg: #ffffff;
+}
+
+/* אין כאן `--ribbon-height: auto`, וזו הסרה: הכלל נשאר מהשלד הראשון, מלפני
+   שהגובה נקבע, ובחלון צר מ-600px הוא החזיר בדיוק את הקפיצה שהטוקנים שלמעלה
+   סוגרים — הרצועה קיבלה את גובה התוכן של הלשונית. מאז הכיווץ לצ'יפים זה היה
+   בולט במיוחד: לשונית שכל קבוצותיה צ'יפים ירדה ל-49px, ושכנתה נשארה 94px. */
+@media (max-width: 600px) {
+  :root {
+    --topbar-height: 44px;
+  }
+}

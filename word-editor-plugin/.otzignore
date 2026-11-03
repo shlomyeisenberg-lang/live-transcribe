@@ -1,0 +1,14 @@
+# מה שלא צריך בזמן ריצה. האריזה נעשית מתיקיית dist, אבל אם יארזו את שורש המאגר
+# עצמה — אלה הקבצים שאין להכניס לתוסף.
+node_modules/
+src/
+docs/
+tests/
+scripts/
+*.map
+package.json
+package-lock.json
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
+vitest.config.ts

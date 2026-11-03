@@ -1,0 +1,24 @@
+Live Transcribe
+Copyright (c) 2026 Shlomo Eisenberg. All rights reserved.
+
+Live Transcribe ("the Software") is proprietary freeware. You may download,
+install and use unmodified copies of the Software free of charge, for personal
+or commercial use.
+
+You may not, without prior written permission from the copyright holder:
+copy, modify, translate, decompile, disassemble or reverse engineer the
+Software (except to the extent applicable law expressly permits it);
+redistribute, sublicense, rent, sell or publish the Software or any part of it;
+or remove or alter any copyright or license notice.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
+
+Exceptions: third-party components included in the Software are licensed
+under their own terms (MIT, Apache-2.0, SIL OFL, CC BY-SA 4.0 for data, and
+others, as stated in their notices). The Custom Word editor plugin in
+word-editor-plugin/ is licensed under the GNU Affero General Public License
+v3 (see word-editor-plugin/LICENSE).
+
+Contact: ceshlomo@gmail.com
