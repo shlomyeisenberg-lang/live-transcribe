@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy: KolScribe English</title>
+<style>
+  :root { --bg:#f7f8fa; --ink:#1b1f24; --muted:#5b6470; --line:#e3e6ea; --accent:#2563eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151a; --ink:#e8ebef; --muted:#9aa4b1; --line:#2a313a; --accent:#5b8def; }
+  }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:48px 20px 64px; }
+  h1 { font-size:1.8rem; margin:0 0 6px; }
+  h2 { font-size:1.15rem; margin:30px 0 10px; }
+  p, li { margin:0 0 12px; }
+  ul, ol { padding-left:22px; margin:0 0 12px; }
+  a { color:var(--accent); }
+  code { background:var(--line); padding:1px 5px; border-radius:4px; font-size:.92em; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="./">&larr; KolScribe English</a></p>
+  <h1>Privacy policy: KolScribe English</h1>
+  <p class="muted"><em>Last updated: 2026-11. Publisher: CESH.</em></p>
+
+  <p>KolScribe English is a speech-to-text app for Windows and macOS. <strong>Your voice and your transcripts stay on your computer.</strong></p>
+
+  <h2>What the app does with your data</h2>
+  <ul>
+    <li><strong>Speech recognition runs on your device.</strong> Audio from the microphone (or from a file you open) is processed locally by the speech models. It is not sent to us or to anyone else.</li>
+    <li><strong>No telemetry, no analytics, no advertising, no account.</strong> We run no server that the app reports to. We do not collect, receive or sell any personal data.</li>
+    <li><strong>Your files stay with you.</strong> Transcripts, the library, settings and downloaded models are stored in the app's data folder on your computer (<code>%LOCALAPPDATA%\KolScribeEnglish</code> on Windows, <code>~/Library/Application Support/…</code> on a Mac). Uninstalling the app does not delete them; you can delete the folder yourself.</li>
+    <li><strong>Microphone:</strong> used only while you record or dictate. Windows and macOS ask for your permission.</li>
+    <li><strong>Typing into other apps and global shortcuts</strong> (Type anywhere, voice commands) only send the text you dictated to the app that has focus, on your computer. The app's local server listens on <code>127.0.0.1</code> only, so it is not reachable from other computers.</li>
+  </ul>
+
+  <h2>When the app uses the network</h2>
+  <p>The app connects to the internet only for things you ask for or switch on:</p>
+  <ol>
+    <li><strong>Downloading models and runtimes</strong> (from Hugging Face, or from the public downloads page on GitHub), and the list of recommended models. These requests contain what any download does (your IP address, the file requested); the app sends no information about you.</li>
+    <li><strong>Checking for updates</strong> (installer and portable versions, on GitHub; you can turn it off in Settings → About &amp; updates). The Microsoft Store version does not check: the Store updates it.</li>
+    <li><strong>AI features, only if you set up a provider</strong> (Settings → AI). Then the text you choose to polish, summarize or translate is sent to <strong>that provider</strong> (for example OpenAI, Anthropic, Google, or a model running on your own computer such as Ollama or LM Studio), under that provider's terms and privacy policy. Your API keys are kept in the system key store (Windows Credential/DPAPI, macOS Keychain). Nothing is sent to an AI provider unless you press the button.</li>
+    <li><strong>Links you click</strong> (for example Help or the project page) open in your browser.</li>
+  </ol>
+
+  <h2>Children</h2>
+  <p>The app is a general-purpose tool and is not directed at children; it collects no data from anyone.</p>
+
+  <h2>Changes and contact</h2>
+  <p>If this policy changes, the new version is published at this address and the date above changes. Questions: open an issue on <a href="https://github.com/shlomyeisenberg-lang/live-transcribe/issues">GitHub</a> or write to <a href="mailto:ceshlomo@gmail.com">ceshlomo@gmail.com</a>.</p>
+</main>
+</body>
+</html>
