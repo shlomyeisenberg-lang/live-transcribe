@@ -21,7 +21,7 @@ There are two apps, built from the same code:
 | `KolScribe-mac.dmg` | `KolScribeEnglish-mac.dmg` | **Mac** (macOS 12+, Apple silicon and Intel). Open it and drag the app to Applications. |
 | `KolScribe-Offline-mac.dmg` | `KolScribeEnglish-Offline-mac.dmg` | The Mac app with the models inside. |
 
-Also in each release: `*.otzplugin` (plugins for [Otzaria](https://github.com/Otzaria): live transcription, and a custom Word editor with dictation; install in Otzaria via **Settings → Plugins → Install from file**), `SHA256SUMS.txt` to verify your download, and the files the apps use to update themselves (`latest-*.json`, `catalog.json`, the Mac `.zip` files).
+Also in each release: `*.otzplugin` (plugins for [Otzaria](https://github.com/Otzaria): live transcription, and a custom Word editor with dictation; install in Otzaria via **Settings → Plugins → Install from file**. If KolScribe is not installed yet, the plugin shows the download links and how to install it), `SHA256SUMS.txt` to verify your download, and the files the apps use to update themselves (`latest-*.json`, `catalog.json`, the Mac `.zip` files).
 
 Windows may warn that the app is unsigned: click **More info → Run anyway**.
 
@@ -36,7 +36,11 @@ Mac: the first time, macOS says it cannot check the app (it is free and not regi
 * **Get more models:** add speech-to-text models from Hugging Face (catalog, search or paste a link), with a check of whether each model runs on your computer.
 * **Rabbinic Hebrew boost** (KolScribe): better recognition of Torah and Talmud vocabulary in any Hebrew model.
 * **Library:** every recording is saved with its audio; play, correct, re-transcribe and export (TXT, SRT, VTT, Word).
-* **AI tools** (optional, your choice of local or cloud model): clean up, polish, summarize and translate. A **Summary card** appears above the original text, which is kept. You can set a time limit for an AI answer.
+* **Built-in AI on your computer** (new in 2.1): one click downloads a recommended model for Hebrew (DictaLM 3.0) or English (Qwen3); nothing you write leaves your computer. You can also use LM Studio, Ollama, ChatGPT, Claude, Gemini and others, and choose a model for each task.
+* **AI tools:** Quick clean and Full clean (also automatically after every dictation), polish, summary, bullet points and translation, on the whole text or on any part you select. Results sit in a side panel, each labeled with the model that made it.
+* **Ask AI** (new in 2.1): ask a question about one transcription or search all of them; the answer links to the exact second in the recording.
+* **Word lists:** your own words and names, a built-in list of Jewish, Yeshivish and Chassidish English words, and the Hebrew Talmud phrases. **Learn from my edits** (new in 2.1): correct a word once in the editor and the app writes it your way from then on.
+* **Guided tour** (new in 2.1): a short walk through every feature the first time you open the app (and any time from the **?** button).
 * **Automatic updates** for the installer and portable versions (you can turn the check off). The Microsoft Store versions are updated by the Store.
 * Models include GigaAM with the Otzaria library word model, Qwen3-ASR Hebrew, Whistle, Parakeet and Moonshine.
 * English and Hebrew interface, light and dark themes.
